@@ -1,5 +1,10 @@
 [![Build Status](https://travis-ci.org/mapbox/tilelive-redis.png?branch=master)](https://travis-ci.org/mapbox/tilelive-redis)
 
+redis-server version
+--------------------
+
+Required minimal/supported version of redis-server is 2.8.x
+
 tilelive-redis
 ------------------
 node-tilejson wrapping source for tilelive.
