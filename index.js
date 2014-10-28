@@ -64,26 +64,32 @@ module.exports.cachingGet = function(namespace, options, get) {
         });
 
         // GET redis.
-        client.get(key, function(err, encoded) {
-            // If error on redis, do not flip first flag.
-            // Finalize will never occur (no cache set).
-            if (err) return (err.key = key) && client.emit('error', err);
+        // Allow command_queue_high_water to act as throttle to prevent
+        // back pressure from what may be an ailing redis-server
+        if (client.command_queue.length < client.command_queue_high_water) {
+            client.get(key, function(err, encoded) {
+                // If error on redis, do not flip first flag.
+                // Finalize will never occur (no cache set).
+                if (err) return (err.key = key) && client.emit('error', err);
 
-            cached = encoded || '500';
-            if (cached && current) finalize();
-            if (sent || !encoded) return;
-            var data;
-            try {
-                data = decode(cached);
-            } catch(err) {
-                (err.key = key) && client.emit('error', err);
-                cached = '500';
-            }
-            if (data) {
-                sent = true;
-                callback(data.err, data.buffer, data.headers);
-            }
-        });
+                cached = encoded || '500';
+                if (cached && current) finalize();
+                if (sent || !encoded) return;
+                var data;
+                try {
+                    data = decode(cached);
+                } catch(err) {
+                    (err.key = key) && client.emit('error', err);
+                    cached = '500';
+                }
+                if (data) {
+                    sent = true;
+                    callback(data.err, data.buffer, data.headers);
+                }
+            });
+        } else {
+            client.emit('error', new Error('Redis command queue at high water mark'));
+        }
 
         function finalize() {
             if (cached === current) return;
@@ -105,37 +111,43 @@ module.exports.cachingGet = function(namespace, options, get) {
         } else {
             expires = options.expires[urlParse(url).hostname] || options.expires.default || 300;
         }
-        client.get(key, function(err, encoded) {
-            // If error on redis get, pass through to original source
-            // without attempting a set after retrieval.
-            if (err) {
-                err.key = key;
-                client.emit('error', err);
-                return get(url, callback);
-            }
 
-            // Cache hit.
-            var data;
-            if (encoded) try {
-                data = decode(encoded);
-            } catch(err) {
-                err.key = key;
-                client.emit('error', err);
-            }
-            if (data) return callback(data.err, data.buffer, data.headers);
-
-            // Cache miss, error, or otherwise no data
-            get.call(source, url, function(err, buffer, headers) {
-                if (err && !errcode(err)) return callback(err);
-                callback(err, buffer, headers);
-                // Callback does not need to wait for redis set to occur.
-                client.setex(key, expires, encode(err, buffer, headers), function(err) {
-                    if (!err) return;
+        if (client.command_queue.length < client.command_queue_high_water) {
+            client.get(key, function(err, encoded) {
+                // If error on redis get, pass through to original source
+                // without attempting a set after retrieval.
+                if (err) {
                     err.key = key;
                     client.emit('error', err);
+                    return get(url, callback);
+                }
+
+                // Cache hit.
+                var data;
+                if (encoded) try {
+                    data = decode(encoded);
+                } catch(err) {
+                    err.key = key;
+                    client.emit('error', err);
+                }
+                if (data) return callback(data.err, data.buffer, data.headers);
+
+                // Cache miss, error, or otherwise no data
+                get.call(source, url, function(err, buffer, headers) {
+                    if (err && !errcode(err)) return callback(err);
+                    callback(err, buffer, headers);
+                    // Callback does not need to wait for redis set to occur.
+                    client.setex(key, expires, encode(err, buffer, headers), function(err) {
+                        if (!err) return;
+                        err.key = key;
+                        client.emit('error', err);
+                    });
                 });
             });
-        });
+        } else {
+            client.emit('error', new Error('Redis command queue at high water mark'));
+            return get.call(source, url, callback);
+        }
     };
 
     return caching;

@@ -232,6 +232,26 @@ describe('readthrough', function() {
             deadsource.getGrid(1, 0, 0, grid(grids.b, false, done));
         });
     });
+    describe('high water mark', function() {
+        var highwater = function(err) {
+            assert.equal(err.message, 'Redis command queue at high water mark');
+        };
+        before(function(done) {
+            Source.redis.client.command_queue_high_water = 0;
+            Source.redis.client.on('error', highwater);
+            done();
+        });
+        after(function(done) {
+            Source.redis.client.command_queue_high_water = 1000;
+            Source.redis.client.removeListener('error', highwater);
+            done();
+        });
+        it('error on high water mark', function(done) {
+            source.getTile(0, 0, 0, function(err, res) {
+                done();
+            });
+        });
+    });
 });
 
 describe('race', function() {
@@ -401,6 +421,26 @@ describe('race', function() {
         });
         it('dead grid 200 b miss', function(done) {
             deadsource.getGrid(1, 0, 0, grid(grids.b, false, done));
+        });
+    });
+    describe('high water mark', function() {
+        var highwater = function(err) {
+            assert.equal(err.message, 'Redis command queue at high water mark');
+        };
+        before(function(done) {
+            Source.redis.client.command_queue_high_water = 0;
+            Source.redis.client.on('error', highwater);
+            done();
+        });
+        after(function(done) {
+            Source.redis.client.command_queue_high_water = 1000;
+            Source.redis.client.removeListener('error', highwater);
+            done();
+        });
+        it('error on high water mark', function(done) {
+            source.getTile(0, 0, 0, function(err, res) {
+                done();
+            });
         });
     });
 });
