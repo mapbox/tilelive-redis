@@ -24,3 +24,12 @@ Two modes for caching are available.
 
 - **readthrough** hits redis first and only calls a `get` on the original source if a cache miss occurs.
 - **race** always hits both redis and the original source concurrently. The IO operation that completes fastest will handle the `get` call. After both operations are complete the cache may be updated if the original source's contents have changed.
+
+### Command queue high water mark
+
+`node-redis` supports a `command_queue_high_water` options, which tilelive-redis
+uses in order to avoid back pressure in the application as a result of a failing
+redis server.  tilelive-redis will skip redis and instead request only from the
+source once the command queue high water mark is hit.  The default value for
+`command_queue_high_water` is set by node-redis and is 1000; set a custom value
+in your redis client if you desire.
