@@ -27,7 +27,7 @@ Two modes for caching are available.
 
 ### Command queue high water mark
 
-`node-redis` supports a `command_queue_high_water` options, which tilelive-redis
+`node-redis` supports a `command_queue_high_water` option, which tilelive-redis
 uses in order to avoid back pressure in the application as a result of a failing
 redis server.  tilelive-redis will skip redis and instead request only from the
 source once the command queue high water mark is hit.  The default value for
