@@ -1,4 +1,5 @@
 var assert = require('assert');
+var bufferEqual = require('buffer-equal');
 var Redsource = require('../index');
 var redis = Redsource.redis;
 var deadclient = redis.createClient(6380, '127.0.0.1', {});
@@ -45,7 +46,7 @@ describe('load', function() {
         done();
     });
     it('sets client from opts', function(done) {
-        var client = redis.createClient();
+        var client = redis.createClient({return_buffers: true});
         var Source = Redsource({ client: client, expires:5 }, Testsource);
         assert.ok(Source.redis);
         assert.strictEqual(Source.redis.client, client);
@@ -253,7 +254,6 @@ describe('readthrough', function() {
         });
     });
 });
-
 describe('race', function() {
     var source;
     var longsource;
@@ -562,26 +562,76 @@ describe('unit', function() {
         assert.equal(Redsource.encode(errstat404), '404');
         assert.equal(Redsource.encode(errstat403), '403');
         assert.equal(Redsource.encode(errstat500), null);
-        assert.equal(Redsource.encode(null, {id:'foo'}), '{"x-redis-json":true}eyJpZCI6ImZvbyJ9', 'encodes object');
-        assert.equal(Redsource.encode(null, 'hello world'), '{}aGVsbG8gd29ybGQ=', 'encodes string');
-        assert.equal(Redsource.encode(null, new Buffer(0)), '{}', 'encodes empty buffer');
+
+        var padding = new Buffer(1024 - '{"x-redis-json":true}'.length);
+        padding.fill(' ');
+        assert.ok(bufferEqual(Redsource.encode(null, {id:'foo'}), Buffer.concat([
+          new Buffer('{"x-redis-json":true}'),
+          padding,
+          new Buffer('{"id":"foo"}')]
+        ), 'encodes object'));
+
+        var padding = new Buffer(1024 - '{}'.length);
+        padding.fill(' ');
+        assert.ok(bufferEqual(Redsource.encode(null, 'hello world'), Buffer.concat([
+          new Buffer('{}'),
+          padding,
+          new Buffer('hello world')]
+        ), 'encodes string'));
+
+        var padding = new Buffer(1024 - '{}'.length);
+        padding.fill(' ');
+        assert.ok(bufferEqual(Redsource.encode(null, new Buffer(0)), Buffer.concat([
+          new Buffer('{}'),
+          padding,
+          new Buffer(0)]
+        ), 'encodes string'));
         done();
     });
     it('decode', function(done) {
         assert.deepEqual(Redsource.decode('404'), {err:{code:404,status:404,redis:true}});
         assert.deepEqual(Redsource.decode('403'), {err:{code:403,status:403,redis:true}});
-        assert.deepEqual(Redsource.decode('{"x-redis-json":true}eyJpZCI6ImZvbyJ9'), {
+
+        var headers = JSON.stringify({'x-redis-json':true,'x-redis':'hit'});
+        var padding = new Buffer(1024 - headers.length);
+        padding.fill(' ');
+        var buffer = JSON.stringify({'id':'foo'});
+        var encoded = new Buffer.concat([
+          new Buffer(headers),
+          padding,
+          new Buffer(buffer)
+        ]);
+        assert.deepEqual(Redsource.decode(encoded), {
             headers:{'x-redis-json':true,'x-redis':'hit'},
             buffer:{'id':'foo'}
         }, 'decodes object');
-        assert.deepEqual(Redsource.decode('{}aGVsbG8gd29ybGQ='), {
+
+        var headers = JSON.stringify({'x-redis':'hit'});
+        var padding = new Buffer(1024 - headers.length);
+        padding.fill(' ');
+        var buffer = 'hello world';
+        var encoded = new Buffer.concat([
+          new Buffer(headers),
+          padding,
+          new Buffer(buffer)
+        ]);
+        assert.deepEqual(Redsource.decode(encoded), {
             headers:{'x-redis':'hit'},
-            buffer:new Buffer('hello world')
+            buffer: new Buffer('hello world'),
         }, 'decodes string (as buffer)');
-        assert.deepEqual(Redsource.decode('{}'), {
+
+        var headers = JSON.stringify({});
+        var padding = new Buffer(1024 - headers.length);
+        padding.fill(' ');
+        var encoded = new Buffer.concat([
+          new Buffer(headers),
+          padding,
+          new Buffer(0)
+        ]);
+        assert.deepEqual(Redsource.decode(encoded), {
             headers:{'x-redis':'hit'},
-            buffer:new Buffer(0)
-        }, 'decodes buffer');
+            buffer: new Buffer(0),
+        }, 'decodes string (as buffer)');
         done();
     });
 });

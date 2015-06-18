@@ -24,7 +24,11 @@ module.exports.cachingGet = function(namespace, options, get) {
     if (!namespace) throw new Error('No namespace provided');
 
     options = options || {};
-    options.client = ('client' in options) ? options.client : redis.createClient();
+    if (options.client) {
+        options.client.options.return_buffers = true;
+    } else {
+        options.client = redis.createClient({return_buffers: true});
+    }
     options.expires = ('expires' in options) ? options.expires : 300;
     options.mode = ('mode' in options) ? options.mode : 'readthrough';
 
@@ -183,11 +187,19 @@ function encode(err, buffer, headers) {
         buffer = new Buffer(buffer);
     }
 
-    return JSON.stringify(headers) + buffer.toString('base64');
+    headers = JSON.stringify(headers);
+    // XXX better error handling here
+    if (headers.length > 1024) return null;
+    headers = new Buffer(headers);
+    var padding = new Buffer(1024 - headers.length);
+    padding.fill(' ');
+    var len = headers.length + padding.length + buffer.length;
+    return Buffer.concat([headers, padding, buffer], len);
 };
 
 function decode(encoded) {
-    if (encoded === '404' || encoded === '403') {
+    if (encoded.length == 3 &&
+         (encoded.toString() === '404' || encoded.toString() === '403')) {
         var err = new Error();
         err.code = parseInt(encoded, 10);
         err.status = parseInt(encoded, 10);
@@ -195,13 +207,15 @@ function decode(encoded) {
         return { err: err };
     }
 
-    var breaker = encoded.indexOf('}');
-    if (breaker === -1) return new Error('Invalid cache value');
-
+    // First 1024 bytes reserved for header + padding.
+    var offset = 1024;
     var data = {};
-    data.headers = JSON.parse(encoded.substr(0, breaker+1));
+    data.headers = encoded.slice(0, offset).toString().trim();
+    var breaker = data.headers.indexOf('}');
+    if (breaker === -1) return new Error('Invalid cache value');
+    data.headers = JSON.parse(data.headers);
     data.headers['x-redis'] = 'hit';
-    data.buffer = new Buffer(encoded.substr(breaker), 'base64');
+    data.buffer = encoded.slice(offset);
 
     // Return JSON-encoded objects to true form.
     if (data.headers['x-redis-json']) data.buffer = JSON.parse(data.buffer);
@@ -210,4 +224,3 @@ function decode(encoded) {
         throw new Error('Content length does not match');
     return data;
 };
-
