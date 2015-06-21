@@ -11,9 +11,14 @@ var grids = {
     b: { grid:'', keys: ['', '1' ], data:{'1': {'name':'bar'}} },
 };
 
+var perf = {
+    a: require('fs').readFileSync(__dirname + '/encode-buster.pbf'),
+};
+
 Testsource.now = new Date;
 Testsource.tiles = tiles;
 Testsource.grids = grids;
+Testsource.perf = perf;
 
 // Define a mock test source.
 function Testsource(uri, callback) {
@@ -81,6 +86,11 @@ Testsource.prototype.get = function(url, callback) {
         case 'http://long/1/0/0.grid.json':
             return callback(null, JSON.stringify(grids.b), {
                 'content-type': 'application/json',
+                'last-modified': now.toUTCString()
+            });
+        case 'http://perf/0/0/0.png':
+            return callback(null, perf.a, {
+                'content-type': 'application/x-protobuf',
                 'last-modified': now.toUTCString()
             });
         default:
