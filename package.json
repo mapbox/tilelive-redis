@@ -8,10 +8,10 @@
     "url": "git://github.com/mapbox/tilelive-redis.git"
   },
   "dependencies": {
-    "redis": "0.12.1",
-    "buffer-equal": "0.0.x"
+    "redis": "0.12.1"
   },
   "devDependencies": {
+    "buffer-equal": "0.0.x",
     "mocha": "1.3.x"
   },
   "scripts": {
