@@ -638,3 +638,15 @@ describe('unit', function() {
         done();
     });
 });
+
+describe('perf', function() {
+    var buffer = require('fs').readFileSync(__dirname + '/encode-buster.pbf');
+    it('encodes buster PBF in < 10ms', function(done) {
+        var time = + new Date();
+        for (var i = 0; i < 10; i++) Redsource.encode(null, buffer);
+        time = + new Date() - time;
+        assert.equal(time < 10, true, 'encodes buster PBF 10x in ' + time + 'ms');
+        done();
+    });
+});
+
