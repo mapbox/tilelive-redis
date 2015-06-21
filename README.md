@@ -1,13 +1,10 @@
 [![Build Status](https://travis-ci.org/mapbox/tilelive-redis.png?branch=master)](https://travis-ci.org/mapbox/tilelive-redis)
 
-redis-server version
---------------------
-
-Required minimal/supported version of redis-server is 2.8.x
-
 tilelive-redis
-------------------
-node-tilejson wrapping source for tilelive.
+--------------
+Module for adding a redis-based caching layer in front a [node-tilejson](https://github.com/mapbox/node-tilejson) tilelive source.
+
+It wraps `node-tilejson`, providing a new source constructor with redis superpowers:
 
     var options = {
         mode: 'readthrough', // optional, cache mode either 'readthrough' or 'race'
@@ -17,6 +14,10 @@ node-tilejson wrapping source for tilelive.
     var TileJSON = require('tilelive-redis')(options, require('tilejson'));
 
     new TileJSON( ... )
+
+### Requirements
+
+Required minimal/supported version of redis-server is 2.8.x
 
 ### Cache modes
 
