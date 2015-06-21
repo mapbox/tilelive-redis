@@ -187,10 +187,12 @@ function encode(err, buffer, headers) {
         buffer = new Buffer(buffer);
     }
 
-    headers = JSON.stringify(headers);
-    // XXX better error handling here
-    if (headers.length > 1024) return null;
-    headers = new Buffer(headers);
+    headers = new Buffer(JSON.stringify(headers), 'utf8');
+
+    if (headers.length > 1024) {
+        throw new Error('Invalid cache value - headers exceed 1024 bytes: ' + JSON.stringify(headers));
+    }
+
     var padding = new Buffer(1024 - headers.length);
     padding.fill(' ');
     var len = headers.length + padding.length + buffer.length;
@@ -198,22 +200,28 @@ function encode(err, buffer, headers) {
 };
 
 function decode(encoded) {
-    if (encoded.length == 3 &&
-         (encoded.toString() === '404' || encoded.toString() === '403')) {
-        var err = new Error();
-        err.code = parseInt(encoded, 10);
-        err.status = parseInt(encoded, 10);
-        err.redis = true;
-        return { err: err };
+    if (encoded.length == 3) {
+        encoded = encoded.toString();
+        if (encoded === '404' || encoded === '403') {
+            var err = new Error();
+            err.code = parseInt(encoded, 10);
+            err.status = parseInt(encoded, 10);
+            err.redis = true;
+            return { err: err };
+        }
     }
 
     // First 1024 bytes reserved for header + padding.
     var offset = 1024;
     var data = {};
     data.headers = encoded.slice(0, offset).toString().trim();
-    var breaker = data.headers.indexOf('}');
-    if (breaker === -1) return new Error('Invalid cache value');
-    data.headers = JSON.parse(data.headers);
+
+    try {
+        data.headers = JSON.parse(data.headers);
+    } catch(e) {
+        throw new Error('Invalid cache value');
+    }
+
     data.headers['x-redis'] = 'hit';
     data.buffer = encoded.slice(offset);
 

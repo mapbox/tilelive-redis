@@ -563,29 +563,34 @@ describe('unit', function() {
         assert.equal(Redsource.encode(errstat403), '403');
         assert.equal(Redsource.encode(errstat500), null);
 
-        var padding = new Buffer(1024 - '{"x-redis-json":true}'.length);
-        padding.fill(' ');
-        assert.ok(bufferEqual(Redsource.encode(null, {id:'foo'}), Buffer.concat([
-          new Buffer('{"x-redis-json":true}'),
-          padding,
-          new Buffer('{"id":"foo"}')]
-        ), 'encodes object'));
+        assert.ok(bufferEqual(Redsource.encode(null, {id:'foo'}), new Buffer(
+            '{"x-redis-json":true}' +
+            new Array(1025 - '{"x-redis-json":true}'.length).join(' ') +
+            '{"id":"foo"}'
+        )), 'encodes object');
 
-        var padding = new Buffer(1024 - '{}'.length);
-        padding.fill(' ');
-        assert.ok(bufferEqual(Redsource.encode(null, 'hello world'), Buffer.concat([
-          new Buffer('{}'),
-          padding,
-          new Buffer('hello world')]
+        assert.ok(bufferEqual(Redsource.encode(null, 'hello world'), new Buffer(
+            '{}' +
+            new Array(1025 - '{}'.length).join(' ') +
+            'hello world'
         ), 'encodes string'));
 
-        var padding = new Buffer(1024 - '{}'.length);
-        padding.fill(' ');
-        assert.ok(bufferEqual(Redsource.encode(null, new Buffer(0)), Buffer.concat([
-          new Buffer('{}'),
-          padding,
-          new Buffer(0)]
-        ), 'encodes string'));
+        assert.ok(bufferEqual(Redsource.encode(null, new Buffer(0)), new Buffer(
+            '{}' +
+            new Array(1025 - '{}'.length).join(' ') +
+            ''
+        ), 'encodes empty buffer'));
+
+        assert.ok(bufferEqual(Redsource.encode(null, new Buffer(0), { 'content-type': 'image/png' }), new Buffer(
+            '{"content-type":"image/png"}' +
+            new Array(1025 - '{"content-type":"image/png"}'.length).join(' ') +
+            ''
+        ), 'encodes headers'));
+
+        assert.throws(function() {
+            Redsource.encode(null, new Buffer(0), { data: new Array(1024).join(' ') });
+        }, Error, 'throws when headers exceed 1024 bytes');
+
         done();
     });
     it('decode', function(done) {
@@ -593,45 +598,43 @@ describe('unit', function() {
         assert.deepEqual(Redsource.decode('403'), {err:{code:403,status:403,redis:true}});
 
         var headers = JSON.stringify({'x-redis-json':true,'x-redis':'hit'});
-        var padding = new Buffer(1024 - headers.length);
-        padding.fill(' ');
-        var buffer = JSON.stringify({'id':'foo'});
-        var encoded = new Buffer.concat([
-          new Buffer(headers),
-          padding,
-          new Buffer(buffer)
-        ]);
+        var encoded = new Buffer(
+            headers +
+            new Array(1025 - headers.length).join(' ') +
+            JSON.stringify({'id':'foo'})
+        );
         assert.deepEqual(Redsource.decode(encoded), {
             headers:{'x-redis-json':true,'x-redis':'hit'},
             buffer:{'id':'foo'}
         }, 'decodes object');
 
         var headers = JSON.stringify({'x-redis':'hit'});
-        var padding = new Buffer(1024 - headers.length);
-        padding.fill(' ');
-        var buffer = 'hello world';
-        var encoded = new Buffer.concat([
-          new Buffer(headers),
-          padding,
-          new Buffer(buffer)
-        ]);
+        var encoded = new Buffer(
+            headers +
+            new Array(1025 - headers.length).join(' ') +
+            'hello world'
+        );
         assert.deepEqual(Redsource.decode(encoded), {
             headers:{'x-redis':'hit'},
             buffer: new Buffer('hello world'),
         }, 'decodes string (as buffer)');
 
-        var headers = JSON.stringify({});
-        var padding = new Buffer(1024 - headers.length);
-        padding.fill(' ');
-        var encoded = new Buffer.concat([
-          new Buffer(headers),
-          padding,
-          new Buffer(0)
-        ]);
+        var headers = JSON.stringify({'x-redis':'hit'});
+        var encoded = new Buffer(
+            headers +
+            new Array(1025 - headers.length).join(' ') +
+            ''
+        );
         assert.deepEqual(Redsource.decode(encoded), {
             headers:{'x-redis':'hit'},
             buffer: new Buffer(0),
-        }, 'decodes string (as buffer)');
+        }, 'decodes empty buffer');
+
+        var encoded = new Buffer('bogus');
+        assert.throws(function() {
+            Redsource.decode(encoded);
+        }, Error, 'throws when encoded buffer does not include headers');
+
         done();
     });
 });
