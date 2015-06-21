@@ -14,7 +14,7 @@ module.exports = function(options, Source) {
     // References for testing, convenience, post-call overriding.
     Caching.redis = options;
 
-    Caching.prototype.get = module.exports.cachingGet('TL', options, Source.prototype.get);
+    Caching.prototype.get = module.exports.cachingGet('TL2', options, Source.prototype.get);
 
     return Caching;
 };
