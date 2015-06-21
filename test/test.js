@@ -597,3 +597,32 @@ describe('perf', function() {
     });
 });
 
+
+describe('perf-source', function() {
+    var source;
+    var Source = Redsource({}, Testsource);
+    before(function(done) {
+        Source.redis.client.flushdb(done);
+    });
+    before(function(done) {
+        new Source({hostname:'perf'}, function(err, redsource) {
+            if (err) throw err;
+            source = redsource;
+            done();
+        });
+    });
+    it('gets buster tile 10x in < 20ms', function(done) {
+        var remaining = 10;
+        var time = + new Date();
+        for (var i = 0; i < 10; i++) source.getTile(0,0,0, function(err, data, headers) {
+            assert.ifError(err);
+            assert.equal(data.length, 818051);
+            if (!--remaining) {
+                time = + new Date() - time;
+                assert.equal(time < 20, true, 'getTile buster PBF 10x in ' + time + 'ms');
+                done();
+            }
+        });
+    });
+});
+
