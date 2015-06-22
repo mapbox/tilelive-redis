@@ -616,7 +616,7 @@ describe('perf-source', function() {
         var time = + new Date();
         for (var i = 0; i < 10; i++) source.getTile(0,0,0, function(err, data, headers) {
             assert.ifError(err);
-            assert.equal(data.length, 818051);
+            assert.equal(data.length, 783167);
             if (!--remaining) {
                 time = + new Date() - time;
                 assert.equal(time < 20, true, 'getTile buster PBF 10x in ' + time + 'ms');
