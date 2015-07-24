@@ -1,6 +1,8 @@
 var urlParse = require('url').parse;
 var util = require('util');
 var redis = require('redis');
+var lynx = require('lynx');
+var metrics = new lynx('localhost', 8125);
 
 module.exports = function(options, Source) {
     if (!Source) throw new Error('No source provided');
@@ -59,11 +61,15 @@ module.exports.cachingGet = function(namespace, options, get) {
         var current = null;
 
         // GET upstream.
+        var timeUpstream = metrics.createTimer('tlr.upstream.get');
         get.call(source, url, function(err, buffer, headers) {
+            timeUpstream.stop();
+            if (err) metrics.gauge('tlr.upstream.error', +1);
             current = encode(err, buffer, headers);
             if (cached && current) finalize();
             if (sent) return;
             sent = true;
+            metrics.count('tlr.upstream.won', 1);
             callback(err, buffer, headers);
         });
 
@@ -71,7 +77,10 @@ module.exports.cachingGet = function(namespace, options, get) {
         // Allow command_queue_high_water to act as throttle to prevent
         // back pressure from what may be an ailing redis-server
         if (client.command_queue.length < client.command_queue_high_water) {
+            var timeRedis = metrics.createTimer('tlr.redis.get');
             client.get(key, function(err, encoded) {
+                timeRedis.stop();
+                if (err) metrics.gauge('tlr.redis.error', +1);
                 // If error on redis, do not flip first flag.
                 // Finalize will never occur (no cache set).
                 if (err) return (err.key = key) && client.emit('error', err);
@@ -88,6 +97,7 @@ module.exports.cachingGet = function(namespace, options, get) {
                 }
                 if (data) {
                     sent = true;
+                    metrics.count('tlr.redis.won', 1);
                     callback(data.err, data.buffer, data.headers);
                 }
             });
