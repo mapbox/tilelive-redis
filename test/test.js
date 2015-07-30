@@ -2,6 +2,7 @@ var assert = require('assert');
 var bufferEqual = require('buffer-equal');
 var Redsource = require('../index');
 var redis = Redsource.redis;
+var fakeredis = require('fakeredis');
 var deadclient = redis.createClient(6380, '127.0.0.1', { return_buffers: true });
 
 deadclient.on('error', function(err) {
@@ -548,15 +549,13 @@ describe('cachingGet', function() {
     });
 });
 
-describe('Cluster', function() {
+describe('Single node cluster', function() {
     var source;
     var client = Redsource.createRedisClusterClient(['127.0.0.1:6379'], {return_buffers: true});
     var Source = Redsource({ client: client, expires:5 }, Testsource);
 
     before(function(done) {
-        client.clusterNodes().forEach(function(node) {
-            node.flushdb(done);
-        });
+        client.clusterNodes()[0].flushdb(done);
     });
 
     before(function(done) {
@@ -572,6 +571,51 @@ describe('Cluster', function() {
     });
     it('tile 200 a hit', function(done) {
         source.getTile(0, 0, 0, tile(tiles.a, true, done));
+    });
+});
+
+describe('Multi node cluster', function() {
+    var source;
+    var client = Redsource.createRedisClusterClient([
+        'a.fakehost:6379',
+        'b.fakehost:6379',
+        'c.fakehost:6379'
+    ], {
+        return_buffers: true,
+        _redis: fakeredis
+    });
+    var Source = Redsource({ client: client, expires:5 }, Testsource);
+
+    before(function(done) {
+        var nodes = client.clusterNodes();
+        var cnt = 0;
+        function wait() {
+            cnt++;
+            if (cnt === nodes.length) done();
+        }
+        nodes.forEach(function(node) { node.flushdb(wait); });
+    });
+
+    before(function(done) {
+        new Source({ delay:0 }, function(err, redsource) {
+            if (err) throw err;
+            source = redsource;
+            done();
+        });
+    });
+
+    it('tile 200 a miss', function(done) {
+        source.getTile(0, 0, 0, tile(tiles.a, false, done));
+    });
+    it('tile 200 a hit', function(done) {
+        source.getTile(0, 0, 0, tile(tiles.a, true, done));
+    });
+
+    it('tile 200 b miss', function(done) {
+        source.getTile(1, 0, 0, tile(tiles.b, false, done));
+    });
+    it('tile 200 b hit', function(done) {
+        source.getTile(1, 0, 0, tile(tiles.b, true, done));
     });
 });
 

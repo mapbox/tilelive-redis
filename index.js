@@ -176,7 +176,7 @@ module.exports.createRedisClusterClient = function(servers, options) {
     var ring = new HashRing(servers);
     var nodes = servers.reduce(function(m, v) {
         var l = v.split(':');
-        m[v] = redis.createClient.call(this, l[1], l[0], options);
+        m[v] = (options._redis || redis).createClient.call(this, l[1], l[0], options);
         return m;
     }, {});
 
