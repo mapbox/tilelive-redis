@@ -44,16 +44,18 @@ module.exports.cachingGet = function(namespace, options, get) {
         throw new Error('Invalid value for options.mode ' + options.mode);
     }
 
+    function detectExpiry(url, options) {
+        if (typeof options.expires === 'number') {
+            return options.expires;
+        }
+        return options.expires[urlParse(url).hostname] || options.expires.default || 300;
+    }
+
     function race(url, callback) {
         var key = namespace + '-' + url;
         var source = this;
         var client = options.client;
-        var expires;
-        if (typeof options.expires === 'number') {
-            expires = options.expires;
-        } else {
-            expires = options.expires[urlParse(url).hostname] || options.expires.default || 300;
-        }
+        var expires = detectExpiry(url, options);
         var sent = false;
         var cached = null;
         var current = null;
@@ -109,12 +111,7 @@ module.exports.cachingGet = function(namespace, options, get) {
         var key = namespace + '-' + url;
         var source = this;
         var client = options.client;
-        var expires;
-        if (typeof options.expires === 'number') {
-            expires = options.expires;
-        } else {
-            expires = options.expires[urlParse(url).hostname] || options.expires.default || 300;
-        }
+        var expires = detectExpiry(url, options);
 
         if (client.command_queue.length < client.command_queue_high_water) {
             client.get(key, function(err, encoded) {
