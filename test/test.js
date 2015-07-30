@@ -2,7 +2,7 @@ var assert = require('assert');
 var bufferEqual = require('buffer-equal');
 var Redsource = require('../index');
 var redis = Redsource.redis;
-var deadclient = redis.createClient(6380, '127.0.0.1', {});
+var deadclient = redis.createClient(6380, '127.0.0.1', { return_buffers: true });
 
 deadclient.on('error', function(err) {
     // No op.  Otherwise errors out the tests.

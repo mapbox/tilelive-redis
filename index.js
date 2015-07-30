@@ -25,7 +25,9 @@ module.exports.cachingGet = function(namespace, options, get) {
 
     options = options || {};
     if (options.client) {
-        options.client.options.return_buffers = true;
+        if (options.client.options.return_buffers !== true) {
+            throw new Error('Provided redis client does not expect buffers');
+        }
     } else {
         options.client = redis.createClient({return_buffers: true});
     }
