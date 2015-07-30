@@ -548,6 +548,33 @@ describe('cachingGet', function() {
     });
 });
 
+describe('Cluster', function() {
+    var source;
+    var client = Redsource.createRedisClusterClient(['127.0.0.1:6379'], {return_buffers: true});
+    var Source = Redsource({ client: client, expires:5 }, Testsource);
+
+    before(function(done) {
+        client.clusterNodes().forEach(function(node) {
+            node.flushdb(done);
+        });
+    });
+
+    before(function(done) {
+        new Source({ delay:0 }, function(err, redsource) {
+            if (err) throw err;
+            source = redsource;
+            done();
+        });
+    });
+
+    it('tile 200 a miss', function(done) {
+        source.getTile(0, 0, 0, tile(tiles.a, false, done));
+    });
+    it('tile 200 a hit', function(done) {
+        source.getTile(0, 0, 0, tile(tiles.a, true, done));
+    });
+});
+
 describe('unit', function() {
     it('encode', function(done) {
         var errcode404 = new Error(); errcode404.code = 404;

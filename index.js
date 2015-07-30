@@ -53,6 +53,13 @@ module.exports.cachingGet = function(namespace, options, get) {
         return options.expires[urlParse(url).hostname] || options.expires.default || 300;
     }
 
+    // Allow command_queue_high_water to act as throttle to prevent
+    // back pressure from what may be an ailing redis-server
+    function checkCommandQueue(client, key) {
+        var node = client.clusterNodeLookup ? client.clusterNodeLookup(key) : client;
+        return node.command_queue.length < node.command_queue_high_water
+    }
+
     function race(url, callback) {
         var key = namespace + '-' + url;
         var source = this;
@@ -72,9 +79,7 @@ module.exports.cachingGet = function(namespace, options, get) {
         });
 
         // GET redis.
-        // Allow command_queue_high_water to act as throttle to prevent
-        // back pressure from what may be an ailing redis-server
-        if (client.command_queue.length < client.command_queue_high_water) {
+        if (checkCommandQueue(client, key)) {
             client.get(key, function(err, encoded) {
                 // If error on redis, do not flip first flag.
                 // Finalize will never occur (no cache set).
@@ -115,7 +120,7 @@ module.exports.cachingGet = function(namespace, options, get) {
         var client = options.client;
         var expires = detectExpiry(url, options);
 
-        if (client.command_queue.length < client.command_queue_high_water) {
+        if (checkCommandQueue(client, key)) {
             client.get(key, function(err, encoded) {
                 // If error on redis get, pass through to original source
                 // without attempting a set after retrieval.
@@ -154,6 +159,40 @@ module.exports.cachingGet = function(namespace, options, get) {
     };
 
     return caching;
+};
+
+module.exports.createRedisClusterClient = function(servers, options) {
+    var HashRing = require('hashring');
+
+    // Copy from cachingGet
+    options.expires = ('expires' in options) ? options.expires : 300;
+    options.mode = ('mode' in options) ? options.mode : 'readthrough';
+    // end copy
+
+    var client = {};
+    // Copy options onto our client wrapper so they can be examined.
+    client.options = options;
+
+    var ring = new HashRing(servers);
+    var nodes = servers.reduce(function(m, v) {
+        var l = v.split(':');
+        m[v] = redis.createClient.call(this, l[1], l[0], options);
+        return m;
+    }, {});
+
+    client.clusterNodes = function() {
+        return Object.keys(nodes).map(function(k) { return nodes[k]; });
+    };
+    client.clusterNodeLookup = function(key) { return nodes[ring.get(key)]; };
+
+    // Proxy limited set of methods
+    ['get', 'setex', 'flushdb'].forEach(function(method) {
+        client[method] = function() {
+            var node = ring.get(arguments[0]);
+            nodes[node][method].apply(nodes[node], arguments);
+        };
+    });
+    return client;
 };
 
 module.exports.redis = redis;
