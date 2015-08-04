@@ -45,7 +45,7 @@ module.exports.cachingGet = function(namespace, options, get) {
     }
 
     function race(url, callback) {
-        var key = namespace + '-' + Math.ceil(Math.random() * 100) + '-' + '-' + url;
+        var key = namespace + '-' + Math.ceil(Math.random() * 200) + '-' + '-' + url;
         var source = this;
         var client = options.client;
         var expires;
