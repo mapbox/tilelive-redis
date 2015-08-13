@@ -186,12 +186,23 @@ module.exports.createRedisClusterClient = function(servers, options) {
     client.clusterNodeLookup = function(key) { return nodes[ring.get(key)]; };
 
     // Proxy limited set of methods
-    ['get', 'setex', 'flushdb'].forEach(function(method) {
+    ['get', 'setex'].forEach(function(method) {
         client[method] = function() {
             var node = ring.get(arguments[0]);
             nodes[node][method].apply(nodes[node], arguments);
         };
     });
+    client.flushdb = function(done) {
+        var cnt = 0;
+        var len = client.clusterNodes.length;
+        function wait() {
+            if (cnt === len) done();
+            cnt++;
+        }
+        client.clusterNodes().forEach(function(n) {
+            n.flushdb(wait);
+        });
+    };
     return client;
 };
 

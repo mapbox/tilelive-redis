@@ -555,7 +555,7 @@ describe('Single node cluster', function() {
     var Source = Redsource({ client: client, expires:5 }, Testsource);
 
     before(function(done) {
-        client.clusterNodes()[0].flushdb(done);
+        client.flushdb(done);
     });
 
     before(function(done) {
@@ -587,13 +587,7 @@ describe('Multi node cluster', function() {
     var Source = Redsource({ client: client, expires:5 }, Testsource);
 
     before(function(done) {
-        var nodes = client.clusterNodes();
-        var cnt = 0;
-        function wait() {
-            cnt++;
-            if (cnt === nodes.length) done();
-        }
-        nodes.forEach(function(node) { node.flushdb(wait); });
+        client.flushdb(done);
     });
 
     before(function(done) {
