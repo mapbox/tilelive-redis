@@ -24,16 +24,19 @@ module.exports.cachingGet = function(namespace, options, get) {
     if (!namespace) throw new Error('No namespace provided');
 
     options = options || {};
-    if (options.client) {
-        options.client.options.return_buffers = true;
-    } else {
-        options.client = redis.createClient({return_buffers: true});
+    if (!options.master) {
+        options.master = redis.createClient({return_buffers: true});
+        options.client = options.master;
     }
+    if (options.master && options.master.options.return_buffers !== true) {
+        throw new Error('Must set return_buffers on master client');
+    }
+    if (options.slave && options.slave.options.return_buffers !== true) {
+        throw new Error('Must set return_buffers on slave client');
+    }
+
     options.expires = ('expires' in options) ? options.expires : 300;
     options.mode = ('mode' in options) ? options.mode : 'readthrough';
-
-    if (!options.client) throw new Error('No redis client');
-    if (!options.expires) throw new Error('No expires option set');
 
     var caching;
     if (options.mode === 'readthrough') {
@@ -47,7 +50,8 @@ module.exports.cachingGet = function(namespace, options, get) {
     function race(url, callback) {
         var key = namespace + '-' + url;
         var source = this;
-        var client = options.client;
+        var master = options.master;
+        var slave = options.slave || options.master;
         var expires;
         if (typeof options.expires === 'number') {
             expires = options.expires;
@@ -70,11 +74,12 @@ module.exports.cachingGet = function(namespace, options, get) {
         // GET redis.
         // Allow command_queue_high_water to act as throttle to prevent
         // back pressure from what may be an ailing redis-server
-        if (client.command_queue.length < client.command_queue_high_water) {
-            client.get(key, function(err, encoded) {
+        if (master.command_queue.length < master.command_queue_high_water &&
+            slave.command_queue.length < slave.command_queue_high_water) {
+            slave.get(key, function(err, encoded) {
                 // If error on redis, do not flip first flag.
                 // Finalize will never occur (no cache set).
-                if (err) return (err.key = key) && client.emit('error', err);
+                if (err) return (err.key = key) && slave.emit('error', err);
 
                 cached = encoded || '500';
                 if (cached && current) finalize();
@@ -83,7 +88,7 @@ module.exports.cachingGet = function(namespace, options, get) {
                 try {
                     data = decode(cached);
                 } catch(err) {
-                    (err.key = key) && client.emit('error', err);
+                    (err.key = key) && slave.emit('error', err);
                     cached = '500';
                 }
                 if (data) {
@@ -92,15 +97,15 @@ module.exports.cachingGet = function(namespace, options, get) {
                 }
             });
         } else {
-            client.emit('error', new Error('Redis command queue at high water mark'));
+            slave.emit('error', new Error('Redis command queue at high water mark'));
         }
 
         function finalize() {
             if (cached === current) return;
-            client.setex(key, expires, current, function(err) {
+            master.setex(key, expires, current, function(err) {
                 if (!err) return;
                 err.key = key;
-                client.emit('error', err);
+                master.emit('error', err);
             });
         }
     };
@@ -108,7 +113,8 @@ module.exports.cachingGet = function(namespace, options, get) {
     function readthrough(url, callback) {
         var key = namespace + '-' + url;
         var source = this;
-        var client = options.client;
+        var master = options.master;
+        var slave = options.slave || options.master;
         var expires;
         if (typeof options.expires === 'number') {
             expires = options.expires;
@@ -116,13 +122,14 @@ module.exports.cachingGet = function(namespace, options, get) {
             expires = options.expires[urlParse(url).hostname] || options.expires.default || 300;
         }
 
-        if (client.command_queue.length < client.command_queue_high_water) {
-            client.get(key, function(err, encoded) {
+        if (master.command_queue.length < master.command_queue_high_water &&
+            slave.command_queue.length < slave.command_queue_high_water) {
+            slave.get(key, function(err, encoded) {
                 // If error on redis get, pass through to original source
                 // without attempting a set after retrieval.
                 if (err) {
                     err.key = key;
-                    client.emit('error', err);
+                    slave.emit('error', err);
                     return get(url, callback);
                 }
 
@@ -132,7 +139,7 @@ module.exports.cachingGet = function(namespace, options, get) {
                     data = decode(encoded);
                 } catch(err) {
                     err.key = key;
-                    client.emit('error', err);
+                    slave.emit('error', err);
                 }
                 if (data) return callback(data.err, data.buffer, data.headers);
 
@@ -141,15 +148,15 @@ module.exports.cachingGet = function(namespace, options, get) {
                     if (err && !errcode(err)) return callback(err);
                     callback(err, buffer, headers);
                     // Callback does not need to wait for redis set to occur.
-                    client.setex(key, expires, encode(err, buffer, headers), function(err) {
+                    master.setex(key, expires, encode(err, buffer, headers), function(err) {
                         if (!err) return;
                         err.key = key;
-                        client.emit('error', err);
+                        master.emit('error', err);
                     });
                 });
             });
         } else {
-            client.emit('error', new Error('Redis command queue at high water mark'));
+            slave.emit('error', new Error('Redis command queue at high water mark'));
             return get.call(source, url, callback);
         }
     };
