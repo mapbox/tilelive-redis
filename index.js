@@ -163,13 +163,19 @@ module.exports.cachingGet = function(namespace, options, get) {
 
 module.exports.createRedisClusterClient = function(servers, options) {
     var HashRing = require('hashring');
+    var events = require('events');
 
     // Copy from cachingGet
     options.expires = ('expires' in options) ? options.expires : 300;
     options.mode = ('mode' in options) ? options.mode : 'readthrough';
     // end copy
 
-    var client = {};
+    function ClusterClient() {
+        events.EventEmitter.call(this);
+    }
+    util.inherits(ClusterClient, events.EventEmitter);
+    var client = new ClusterClient();
+
     // Copy options onto our client wrapper so they can be examined.
     client.options = options;
 
@@ -203,6 +209,27 @@ module.exports.createRedisClusterClient = function(servers, options) {
             n.flushdb(wait);
         });
     };
+
+
+    // Proxy events
+    function proxyEvent(n) {
+        return function(e) {
+            n.on(e, function() {
+                client.emit(e, n);
+            });
+        };
+    }
+    client.clusterNodes().forEach(function(n) {
+        [
+            'connect',
+            'data',
+            'error',
+            'close',
+            'end',
+            'drain'
+        ].forEach(proxyEvent(n));
+    });
+
     return client;
 };
 
