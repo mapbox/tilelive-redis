@@ -163,6 +163,8 @@ module.exports.decode = decode;
 
 function errcode(err) {
     if (!err) return;
+    if (err.statusCode === 404) return 404;
+    if (err.statusCode === 403) return 403;
     if (err.status === 404) return 404;
     if (err.status === 403) return 403;
     if (err.code === 404) return 404;
@@ -206,6 +208,7 @@ function decode(encoded) {
             var err = new Error();
             err.code = parseInt(encoded, 10);
             err.status = parseInt(encoded, 10);
+            err.statusCode = parseInt(encoded, 10);
             err.redis = true;
             return { err: err };
         }

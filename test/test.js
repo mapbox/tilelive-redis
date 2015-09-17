@@ -556,12 +556,18 @@ describe('unit', function() {
         var errstat404 = new Error(); errstat404.status = 404;
         var errstat403 = new Error(); errstat403.status = 403;
         var errstat500 = new Error(); errstat500.status = 500;
+        var errstatCode404 = new Error(); errstatCode404.statusCode = 404;
+        var errstatCode403 = new Error(); errstatCode403.statusCode = 403;
+        var errstatCode500 = new Error(); errstatCode500.statusCode = 500;
         assert.equal(Redsource.encode(errcode404), '404');
         assert.equal(Redsource.encode(errcode403), '403');
         assert.equal(Redsource.encode(errcode500), null);
         assert.equal(Redsource.encode(errstat404), '404');
         assert.equal(Redsource.encode(errstat403), '403');
         assert.equal(Redsource.encode(errstat500), null);
+        assert.equal(Redsource.encode(errstatCode404), '404');
+        assert.equal(Redsource.encode(errstatCode403), '403');
+        assert.equal(Redsource.encode(errstatCode500), null);
 
         assert.ok(bufferEqual(Redsource.encode(null, {id:'foo'}), new Buffer(
             '{"x-redis-json":true}' +
@@ -594,8 +600,8 @@ describe('unit', function() {
         done();
     });
     it('decode', function(done) {
-        assert.deepEqual(Redsource.decode('404'), {err:{code:404,status:404,redis:true}});
-        assert.deepEqual(Redsource.decode('403'), {err:{code:403,status:403,redis:true}});
+        assert.deepEqual(Redsource.decode('404'), {err:{code:404,status:404,statusCode:404,redis:true}});
+        assert.deepEqual(Redsource.decode('403'), {err:{code:403,status:403,statusCode:403,redis:true}});
 
         var headers = JSON.stringify({'x-redis-json':true,'x-redis':'hit'});
         var encoded = new Buffer(
