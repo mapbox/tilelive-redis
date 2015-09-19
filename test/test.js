@@ -133,7 +133,7 @@ describe('readthrough', function() {
         source.getTile(1, 0, 0, tile(tiles.b, true, done));
     });
     it('tile 40x miss', function(done) {
-        source.getTile(4, 0, 0, error('Tile does not exist', false, done));
+        source.getTile(4, 0, 0,error('Tile does not exist', false, done));
     });
     it('tile 40x hit', function(done) {
         source.getTile(4, 0, 0, error('Tile does not exist', true, done));
@@ -455,12 +455,12 @@ describe('cachingGet', function() {
 
         if (id === 'missing') {
             var err = new Error('Not found');
-            err.code = 404;
+            err.statusCode = 404;
             return callback(err);
         }
         if (id === 'fatal') {
             var err = new Error('Fatal');
-            err.code = 500;
+            err.statusCode = 500;
             return callback(err);
         }
         if (id === 'nocode') {
@@ -495,7 +495,7 @@ describe('cachingGet', function() {
     it('getter 404 miss', function(done) {
         wrapped('missing', function(err, data, headers) {
             assert.equal(err.toString(), 'Error: Not found', 'not found err');
-            assert.equal(err.code, 404, 'err code 404');
+            assert.equal(err.statusCode, 404, 'err statusCode 404');
             assert.ok(!headers, 'no headers');
             assert.equal(stats.missing, 1, 'missing IO x1');
             done();
@@ -504,7 +504,7 @@ describe('cachingGet', function() {
     it('getter 404 hit', function(done) {
         wrapped('missing', function(err, data, headers) {
             assert.equal(err.toString(), 'Error', 'not found err');
-            assert.equal(err.code, 404, 'err code 404');
+            assert.equal(err.statusCode, 404, 'err statusCode 404');
             assert.ok(!headers, 'no headers');
             assert.equal(stats.missing, 1, 'missing IO x1');
             done();
@@ -513,7 +513,7 @@ describe('cachingGet', function() {
     it('getter 500 miss', function(done) {
         wrapped('fatal', function(err, data, headers) {
             assert.equal(err.toString(), 'Error: Fatal', 'fatal err');
-            assert.equal(err.code, 500, 'err code 500');
+            assert.equal(err.statusCode, 500, 'err statusCode 500');
             assert.ok(!headers, 'no headers');
             assert.equal(stats.fatal, 1, 'fatal IO x1');
             done();
@@ -522,7 +522,7 @@ describe('cachingGet', function() {
     it('getter 500 miss', function(done) {
         wrapped('fatal', function(err, data, headers) {
             assert.equal(err.toString(), 'Error: Fatal', 'fatal err');
-            assert.equal(err.code, 500, 'err code 500');
+            assert.equal(err.statusCode, 500, 'err statusCode 500');
             assert.ok(!headers, 'no headers');
             assert.equal(stats.fatal, 2, 'fatal IO x1');
             done();
@@ -531,7 +531,7 @@ describe('cachingGet', function() {
     it('getter nocode', function(done) {
         wrapped('nocode', function(err, data, headers) {
             assert.equal(err.toString(), 'Error: Unexpected', 'unexpected err');
-            assert.equal(err.code, undefined, 'no err code');
+            assert.equal(err.statusCode, undefined, 'no err statusCode');
             assert.ok(!headers, 'no headers');
             assert.equal(stats.nocode, 1, 'nocode IO x1');
             done();
@@ -540,7 +540,7 @@ describe('cachingGet', function() {
     it('getter nocode', function(done) {
         wrapped('nocode', function(err, data, headers) {
             assert.equal(err.toString(), 'Error: Unexpected', 'unexpected err');
-            assert.equal(err.code, undefined, 'no err code');
+            assert.equal(err.statusCode, undefined, 'no err statusCode');
             assert.ok(!headers, 'no headers');
             assert.equal(stats.nocode, 2, 'nocode IO x1');
             done();
@@ -550,21 +550,9 @@ describe('cachingGet', function() {
 
 describe('unit', function() {
     it('encode', function(done) {
-        var errcode404 = new Error(); errcode404.code = 404;
-        var errcode403 = new Error(); errcode403.code = 403;
-        var errcode500 = new Error(); errcode500.code = 500;
-        var errstat404 = new Error(); errstat404.status = 404;
-        var errstat403 = new Error(); errstat403.status = 403;
-        var errstat500 = new Error(); errstat500.status = 500;
         var errstatCode404 = new Error(); errstatCode404.statusCode = 404;
         var errstatCode403 = new Error(); errstatCode403.statusCode = 403;
         var errstatCode500 = new Error(); errstatCode500.statusCode = 500;
-        assert.equal(Redsource.encode(errcode404), '404');
-        assert.equal(Redsource.encode(errcode403), '403');
-        assert.equal(Redsource.encode(errcode500), null);
-        assert.equal(Redsource.encode(errstat404), '404');
-        assert.equal(Redsource.encode(errstat403), '403');
-        assert.equal(Redsource.encode(errstat500), null);
         assert.equal(Redsource.encode(errstatCode404), '404');
         assert.equal(Redsource.encode(errstatCode403), '403');
         assert.equal(Redsource.encode(errstatCode500), null);
@@ -600,8 +588,8 @@ describe('unit', function() {
         done();
     });
     it('decode', function(done) {
-        assert.deepEqual(Redsource.decode('404'), {err:{code:404,status:404,statusCode:404,redis:true}});
-        assert.deepEqual(Redsource.decode('403'), {err:{code:403,status:403,statusCode:403,redis:true}});
+        assert.deepEqual(Redsource.decode('404'), {err:{statusCode:404,redis:true}});
+        assert.deepEqual(Redsource.decode('403'), {err:{statusCode:403,redis:true}});
 
         var headers = JSON.stringify({'x-redis-json':true,'x-redis':'hit'});
         var encoded = new Buffer(
