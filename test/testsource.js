@@ -95,7 +95,7 @@ Testsource.prototype.get = function(url, callback) {
             });
         default:
             var err = new Error;
-            err.status = 404;
+            err.statusCode = 404;
             return callback(err);
         }
     }
