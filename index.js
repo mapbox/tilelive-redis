@@ -40,6 +40,8 @@ module.exports.cachingGet = function(namespace, options, get) {
         caching = readthrough;
     } else if (options.mode === 'race') {
         caching = race;
+    } else if (options.mode === 'relay') {
+        caching = relay;
     } else {
         throw new Error('Invalid value for options.mode ' + options.mode);
     }
@@ -153,6 +155,86 @@ module.exports.cachingGet = function(namespace, options, get) {
             return get.call(source, url, callback);
         }
     };
+
+    function relay(url, callback) {
+        var key = namespace + '-' + url;
+        var source = this;
+        var client = options.client;
+        var expires;
+        if (typeof options.expires === 'number') {
+            expires = options.expires;
+        } else {
+            expires = options.expires[urlParse(url).hostname] || options.expires.default || 600;
+        }
+        var ttl;
+        if (options.ttl === undefined) {
+            ttl = 300;
+        } else if (typeof options.ttl === 'number') {
+            ttl = options.ttl;
+        } else {
+            ttl = options.ttl[urlParse(url).hostname] || options.ttl.default || 300;
+        }
+
+        client.get(key, function(err, encoded) {
+            // If error on memcached get, pass through to original source
+            // without attempting a set after retrieval.
+            if (err) {
+                err.key = key;
+                client.emit('error', err);
+                return get.call(source,url, callback);
+            }
+
+            // Cache hit.
+            var data;
+            if (encoded) try {
+                data = decode(encoded);
+            } catch(e) {
+                e.key = key;
+                client.emit('error', err);
+            }
+            if (data) {
+                callback(data.err, data.buffer, data.headers);
+                if (isFresh(data)) return;
+
+                // Update cache & bump `expires` header
+                get.call(source, url, function(err, buffer, headers) {
+                    if (err && !errcode(err)) {
+                        return client.emit('error', err);
+                    }
+                    headers = headers || {};
+                    headers.expires = (new Date(Date.now() + (ttl * 1000))).toUTCString();
+                    client.setex(key, expires, encode(err, buffer, headers), function(err) {
+                        if (err) {
+                            err.key = key;
+                            client.emit('error', err);
+                        }
+                    });
+                });
+            } else {
+                // Cache miss, error, or otherwise no data
+                get.call(source, url, function(err, buffer, headers) {
+                    if (err && !errcode(err)) return callback(err);
+
+                    headers = headers || {};
+                    headers.expires = (new Date(Date.now() + (ttl * 1000))).toUTCString();
+                    callback(err, buffer, headers);
+                    client.setex(key, expires, encode(err, buffer, headers), function(err) {
+                        if (err) {
+                            err.key = key;
+                            client.emit('error', err);
+                        }
+                    });
+                });
+            }
+        });
+
+        function isFresh(d) {
+            // When we don't have an expires header just assume staleness
+            if (d.headers === undefined || !d.headers.expires) return false;
+
+            return (+(new Date(d.headers.expires)) > Date.now());
+        }
+    }
 
     return caching;
 };

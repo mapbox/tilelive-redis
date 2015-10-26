@@ -93,6 +93,28 @@ Testsource.prototype.get = function(url, callback) {
                 'content-type': 'application/x-protobuf',
                 'last-modified': now.toUTCString()
             });
+        case 'http://stale/0/0/0.png':
+            return callback(null, tiles.a, {
+                'content-type': 'image/png',
+                'content-length': 11541,
+                'last-modified': now.toUTCString()
+            });
+        case 'http://stale/1/0/0.png':
+            return callback(null, tiles.b, {
+                'content-type': 'image/png',
+                'content-length': 6199,
+                'last-modified': now.toUTCString()
+            });
+        case 'http://stale/0/0/0.grid.json':
+            return callback(null, JSON.stringify(grids.a), {
+                'content-type': 'application/json',
+                'last-modified': now.toUTCString()
+            });
+        case 'http://stale/1/0/0.grid.json':
+            return callback(null, JSON.stringify(grids.b), {
+                'content-type': 'application/json',
+                'last-modified': now.toUTCString()
+            });
         default:
             var err = new Error;
             err.statusCode = 404;
