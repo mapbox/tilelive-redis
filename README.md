@@ -25,6 +25,7 @@ Two modes for caching are available.
 
 - **readthrough** hits redis first and only calls a `get` on the original source if a cache miss occurs.
 - **race** always hits both redis and the original source concurrently. The IO operation that completes fastest will handle the `get` call. After both operations are complete the cache may be updated if the original source's contents have changed.
+- **relay** acts like readthrough, but, goes back to original source if object's headers.ttl is expired.
 
 ### Command queue high water mark
 
