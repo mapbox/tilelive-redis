@@ -2,7 +2,9 @@ var assert = require('assert');
 var bufferEqual = require('buffer-equal');
 var Redsource = require('../index');
 var redis = Redsource.redis;
-var deadclient = redis.createClient(6380, '127.0.0.1', {});
+var deadclient = redis.createClient(6380, '127.0.0.1', {
+    retry_max_delay: 500
+});
 
 deadclient.on('error', function(err) {
     // No op.  Otherwise errors out the tests.
@@ -444,7 +446,209 @@ describe('race', function() {
         });
     });
 });
-
+describe('relay', function() {
+    var source;
+    var longsource;
+    var deadsource;
+    var stalesource;
+    var Source = Redsource({
+        expires: {
+            long: 60000,
+            stale: 60000,
+            test: 1
+        },
+        ttl: {
+            long: 60000,
+            stale: 1,
+            test: 1
+        },
+        mode:'relay'
+    }, Testsource);
+    before(function(done) {
+        Source.redis.client.flushdb(done);
+    });
+    before(function(done) {
+        new Source({ delay:50 }, function(err, redsource) {
+            if (err) throw err;
+            source = redsource;
+            done();
+        });
+    });
+    before(function(done) {
+        new Source({ hostname:'long', delay:50 }, function(err, redsource) {
+            if (err) throw err;
+            longsource = redsource;
+            done();
+        });
+    });
+    before(function(done) {
+        new Source({ hostname:'stale', delay:50 }, function(err, redsource) {
+            if (err) throw err;
+            stalesource = redsource;
+            done();
+        });
+    });
+    before(function(done) {
+        var Dead = Redsource({ expires: {
+            long: 60000,
+            test: 1
+        }, mode:'relay', client:deadclient }, Testsource);
+        new Dead({ delay:50 }, function(err, redsource) {
+            if (err) throw err;
+            deadsource = redsource;
+            done();
+        });
+    });
+    it('tile 200 a miss', function(done) {
+        source.getTile(0, 0, 0, tile(tiles.a, false, done));
+    });
+    it('tile 200 a hit', function(done) {
+        source.getTile(0, 0, 0, tile(tiles.a, true, done));
+    });
+    it('tile 200 b miss', function(done) {
+        source.getTile(1, 0, 0, tile(tiles.b, false, done));
+    });
+    it('tile 200 b hit', function(done) {
+        source.getTile(1, 0, 0, tile(tiles.b, true, done));
+    });
+    it('tile 40x miss', function(done) {
+        source.getTile(4, 0, 0, error('Tile does not exist', false, done));
+    });
+    it('tile 40x hit', function(done) {
+        source.getTile(4, 0, 0, error('Tile does not exist', true, done));
+    });
+    it('tile 500 miss', function(done) {
+        source.getTile(2, 0, 0, error('Unexpected error', false, done));
+    });
+    it('tile 500 miss', function(done) {
+        source.getTile(2, 0, 0, error('Unexpected error', false, done));
+    });
+    it('grid 200 a miss', function(done) {
+        source.getGrid(0, 0, 0, grid(grids.a, false, done));
+    });
+    it('grid 200 a hit', function(done) {
+        source.getGrid(0, 0, 0, grid(grids.a, true, done));
+    });
+    it('grid 200 b miss', function(done) {
+        source.getGrid(1, 0, 0, grid(grids.b, false, done));
+    });
+    it('grid 200 b hit', function(done) {
+        source.getGrid(1, 0, 0, grid(grids.b, true, done));
+    });
+    it('grid 40x miss', function(done) {
+        source.getGrid(4, 0, 0, error('Grid does not exist', false, done));
+    });
+    it('grid 40x hit', function(done) {
+        source.getGrid(4, 0, 0, error('Grid does not exist', true, done));
+    });
+    it('long tile 200 a miss', function(done) {
+        longsource.getTile(0, 0, 0, tile(tiles.a, false, done));
+    });
+    it('long tile 200 b miss', function(done) {
+        longsource.getTile(1, 0, 0, tile(tiles.b, false, done));
+    });
+    it('long grid 200 a miss', function(done) {
+        longsource.getGrid(0, 0, 0, grid(grids.a, false, done));
+    });
+    it('long grid 200 b miss', function(done) {
+        longsource.getGrid(1, 0, 0, grid(grids.b, false, done));
+    });
+    it('stale tile 200 a miss', function(done) {
+        stalesource.getTile(0, 0, 0, tile(tiles.a, false, done));
+    });
+    it('stale tile 200 b miss', function(done) {
+        stalesource.getTile(1, 0, 0, tile(tiles.b, false, done));
+    });
+    it('stale grid 200 a miss', function(done) {
+        stalesource.getGrid(0, 0, 0, grid(grids.a, false, done));
+    });
+    it('stale grid 200 b miss', function(done) {
+        stalesource.getGrid(1, 0, 0, grid(grids.b, false, done));
+    });
+    it('dead tile 200 a miss', function(done) {
+        deadsource.getTile(0, 0, 0, tile(tiles.a, false, done));
+    });
+    it('dead tile 200 b miss', function(done) {
+        deadsource.getTile(1, 0, 0, tile(tiles.b, false, done));
+    });
+    it('dead grid 200 a miss', function(done) {
+        deadsource.getGrid(0, 0, 0, grid(grids.a, false, done));
+    });
+    it('dead grid 200 b miss', function(done) {
+        deadsource.getGrid(1, 0, 0, grid(grids.b, false, done));
+    });
+    describe('expires', function() {
+        before(function(done) {
+            setTimeout(done, 1000);
+        });
+        it('tile 200 a expires', function(done) {
+            source.getTile(0, 0, 0, tile(tiles.a, false, done));
+        });
+        it('tile 200 b expires', function(done) {
+            source.getTile(1, 0, 0, tile(tiles.b, false, done));
+        });
+        it('tile 40x expires', function(done) {
+            source.getTile(4, 0, 0, error('Tile does not exist', false, done));
+        });
+        it('grid 200 a expires', function(done) {
+            source.getGrid(0, 0, 0, grid(grids.a, false, done));
+        });
+        it('grid 200 b expires', function(done) {
+            source.getGrid(1, 0, 0, grid(grids.b, false, done));
+        });
+        it('grid 40x expires', function(done) {
+            source.getGrid(4, 0, 0, error('Grid does not exist', false, done));
+        });
+        it('long tile 200 a hit', function(done) {
+            longsource.getTile(0, 0, 0, tile(tiles.a, true, done));
+        });
+        it('long tile 200 b hit', function(done) {
+            longsource.getTile(1, 0, 0, tile(tiles.b, true, done));
+        });
+        it('long grid 200 a hit', function(done) {
+            longsource.getGrid(0, 0, 0, grid(grids.a, true, done));
+        });
+        it('long grid 200 b hit', function(done) {
+            longsource.getGrid(1, 0, 0, grid(grids.b, true, done));
+        });
+        it('dead tile 200 a miss', function(done) {
+            deadsource.getTile(0, 0, 0, tile(tiles.a, false, done));
+        });
+        it('dead tile 200 b miss', function(done) {
+            deadsource.getTile(1, 0, 0, tile(tiles.b, false, done));
+        });
+        it('dead grid 200 a miss', function(done) {
+            deadsource.getGrid(0, 0, 0, grid(grids.a, false, done));
+        });
+        it('dead grid 200 b miss', function(done) {
+            deadsource.getGrid(1, 0, 0, grid(grids.b, false, done));
+        });
+    });
+    describe('refresh', function() {
+        it('long tile 200 a hit', function(done) {
+            longsource.getTile(0, 0, 0, function(err, data, headers) {
+                var origExpires = headers.expires;
+                setTimeout(function() {
+                    longsource.getTile(0, 0, 0, function(err, data, headers) {
+                        assert.equal(origExpires, headers.expires);
+                        tile(tiles.a, true, done)(err, data, headers);
+                    });
+                }, 500);
+            });
+        });
+        it('stale tile 200 a refresh hit', function(done) {
+            stalesource.getTile(0, 0, 0, function(err, data, headers) {
+                var origExpires = headers.expires;
+                setTimeout(function() {
+                    stalesource.getTile(0, 0, 0, function(err, data, headers) {
+                        assert.notEqual(origExpires, headers.expires);
+                        tile(tiles.a, true, done)(err, data, headers);
+                    });
+                }, 500);
+            });
+        });
+    });
+});
 
 describe('cachingGet', function() {
     var stats = {};
