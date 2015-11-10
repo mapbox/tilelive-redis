@@ -176,7 +176,7 @@ module.exports.cachingGet = function(namespace, options, get) {
         }
 
         client.get(key, function(err, encoded) {
-            // If error on memcached get, pass through to original source
+            // If error on redis get, pass through to original source
             // without attempting a set after retrieval.
             if (err) {
                 err.key = key;
