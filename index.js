@@ -175,58 +175,63 @@ module.exports.cachingGet = function(namespace, options, get) {
             ttl = options.ttl[urlParse(url).hostname] || options.ttl.default || 300;
         }
 
-        client.get(key, function(err, encoded) {
-            // If error on redis get, pass through to original source
-            // without attempting a set after retrieval.
-            if (err) {
-                err.key = key;
-                client.emit('error', err);
-                return get.call(source,url, callback);
-            }
+        if (client.command_queue.length < client.command_queue_high_water) {
+            client.get(key, function(err, encoded) {
+                // If error on redis get, pass through to original source
+                // without attempting a set after retrieval.
+                if (err) {
+                    err.key = key;
+                    client.emit('error', err);
+                    return get.call(source,url, callback);
+                }
 
-            // Cache hit.
-            var data;
-            if (encoded) try {
-                data = decode(encoded);
-            } catch(e) {
-                e.key = key;
-                client.emit('error', err);
-            }
-            if (data) {
-                callback(data.err, data.buffer, data.headers);
-                if (isFresh(data)) return;
+                // Cache hit.
+                var data;
+                if (encoded) try {
+                    data = decode(encoded);
+                } catch(e) {
+                    e.key = key;
+                    client.emit('error', err);
+                }
+                if (data) {
+                    callback(data.err, data.buffer, data.headers);
+                    if (isFresh(data)) return;
 
-                // Update cache & bump `expires` header
-                get.call(source, url, function(err, buffer, headers) {
-                    if (err && !errcode(err)) {
-                        return client.emit('error', err);
-                    }
-                    headers = headers || {};
-                    headers.expires = (new Date(Date.now() + (ttl * 1000))).toUTCString();
-                    client.setex(key, expires, encode(err, buffer, headers), function(err) {
-                        if (err) {
-                            err.key = key;
-                            client.emit('error', err);
+                    // Update cache & bump `expires` header
+                    get.call(source, url, function(err, buffer, headers) {
+                        if (err && !errcode(err)) {
+                            return client.emit('error', err);
                         }
+                        headers = headers || {};
+                        headers.expires = (new Date(Date.now() + (ttl * 1000))).toUTCString();
+                        client.setex(key, expires, encode(err, buffer, headers), function(err) {
+                            if (err) {
+                                err.key = key;
+                                client.emit('error', err);
+                            }
+                        });
                     });
-                });
-            } else {
-                // Cache miss, error, or otherwise no data
-                get.call(source, url, function(err, buffer, headers) {
-                    if (err && !errcode(err)) return callback(err);
+                } else {
+                    // Cache miss, error, or otherwise no data
+                    get.call(source, url, function(err, buffer, headers) {
+                        if (err && !errcode(err)) return callback(err);
 
-                    headers = headers || {};
-                    headers.expires = (new Date(Date.now() + (ttl * 1000))).toUTCString();
-                    callback(err, buffer, headers);
-                    client.setex(key, expires, encode(err, buffer, headers), function(err) {
-                        if (err) {
-                            err.key = key;
-                            client.emit('error', err);
-                        }
+                        headers = headers || {};
+                        headers.expires = (new Date(Date.now() + (ttl * 1000))).toUTCString();
+                        callback(err, buffer, headers);
+                        client.setex(key, expires, encode(err, buffer, headers), function(err) {
+                            if (err) {
+                                err.key = key;
+                                client.emit('error', err);
+                            }
+                        });
                     });
-                });
-            }
-        });
+                }
+            });
+        } else {
+            client.emit('error', new Error('Redis command queue at high water mark'));
+            return get.call(source, url, callback);
+        }
 
         function isFresh(d) {
             // When we don't have an expires header just assume staleness
