@@ -236,7 +236,9 @@ describe('readthrough', function() {
         });
     });
     describe('high water mark', function() {
+        var hwmHit;
         var highwater = function(err) {
+            hwmHit = true;
             assert.equal(err.message, 'Redis command queue at high water mark');
         };
         before(function(done) {
@@ -251,11 +253,13 @@ describe('readthrough', function() {
         });
         it('error on high water mark', function(done) {
             source.getTile(0, 0, 0, function(err, res) {
+                assert.equal(hwmHit, true);
                 done();
             });
         });
     });
 });
+
 describe('race', function() {
     var source;
     var longsource;
@@ -426,7 +430,9 @@ describe('race', function() {
         });
     });
     describe('high water mark', function() {
+        var hwmHit;
         var highwater = function(err) {
+            hwmHit = true;
             assert.equal(err.message, 'Redis command queue at high water mark');
         };
         before(function(done) {
@@ -441,11 +447,13 @@ describe('race', function() {
         });
         it('error on high water mark', function(done) {
             source.getTile(0, 0, 0, function(err, res) {
+                assert.equal(hwmHit, true);
                 done();
             });
         });
     });
 });
+
 describe('relay', function() {
     var source;
     var longsource;
@@ -499,6 +507,7 @@ describe('relay', function() {
             done();
         });
     });
+
     it('tile 200 a miss', function(done) {
         source.getTile(0, 0, 0, tile(tiles.a, false, done));
     });
@@ -645,6 +654,30 @@ describe('relay', function() {
                         tile(tiles.a, true, done)(err, data, headers);
                     });
                 }, 500);
+            });
+        });
+    });
+
+    describe('high water mark', function() {
+        var hwmHit;
+        var highwater = function(err) {
+            hwmHit = true;
+            assert.equal(err.message, 'Redis command queue at high water mark');
+        };
+        before(function(done) {
+            Source.redis.client.command_queue_high_water = 0;
+            Source.redis.client.on('error', highwater);
+            done();
+        });
+        after(function(done) {
+            Source.redis.client.command_queue_high_water = 1000;
+            Source.redis.client.removeListener('error', highwater);
+            done();
+        });
+        it('error on high water mark', function(done) {
+            source.getTile(0, 0, 0, function(err, res) {
+                assert.equal(hwmHit, true);
+                done();
             });
         });
     });
@@ -876,4 +909,3 @@ describe('perf-source', function() {
         });
     });
 });
-
