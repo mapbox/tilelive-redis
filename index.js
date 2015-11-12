@@ -1,6 +1,7 @@
 var urlParse = require('url').parse;
 var util = require('util');
 var redis = require('redis');
+var bufferEqual = require('buffer-equal');
 
 module.exports = function(options, Source) {
     if (!Source) throw new Error('No source provided');
@@ -98,7 +99,7 @@ module.exports.cachingGet = function(namespace, options, get) {
         }
 
         function finalize() {
-            if (cached === current) return;
+            if (bufferEqual(cached, current)) return;
             client.setex(key, expires, current, function(err) {
                 if (!err) return;
                 err.key = key;
