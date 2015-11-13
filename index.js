@@ -126,7 +126,7 @@ module.exports.cachingGet = function(namespace, options, get) {
                 if (err) {
                     err.key = key;
                     client.emit('error', err);
-                    return get(url, callback);
+                    return get.call(source, url, callback);
                 }
 
                 // Cache hit.
