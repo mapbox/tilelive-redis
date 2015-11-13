@@ -903,7 +903,7 @@ describe('perf-source', function() {
             assert.equal(data.length, 783167);
             if (!--remaining) {
                 time = + new Date() - time;
-                assert.equal(time < 20, true, 'getTile buster PBF 10x in ' + time + 'ms');
+                assert.equal(time < 40, true, 'getTile buster PBF 10x in ' + time + 'ms');
                 done();
             }
         });
