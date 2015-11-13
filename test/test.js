@@ -115,7 +115,7 @@ describe('readthrough', function() {
         var Dead = Redsource({ expires: {
             long: 60000,
             test: 1
-        }, mode:'race', client:deadclient }, Testsource);
+        }, mode:'readthrough', client:deadclient }, Testsource);
         new Dead({ delay:50 }, function(err, redsource) {
             if (err) throw err;
             deadsource = redsource;
@@ -903,7 +903,7 @@ describe('perf-source', function() {
             assert.equal(data.length, 783167);
             if (!--remaining) {
                 time = + new Date() - time;
-                assert.equal(time < 20, true, 'getTile buster PBF 10x in ' + time + 'ms');
+                assert.equal(time < 40, true, 'getTile buster PBF 10x in ' + time + 'ms');
                 done();
             }
         });

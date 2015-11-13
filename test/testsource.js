@@ -31,6 +31,8 @@ function Testsource(uri, callback) {
     callback(null, this);
 };
 Testsource.prototype.get = function(url, callback) {
+    if (this._uri === undefined) throw new Error('Called without proper context');
+
     var stat = this.stat;
 
     if (this.delay) {
