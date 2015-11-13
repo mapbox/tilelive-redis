@@ -115,7 +115,7 @@ describe('readthrough', function() {
         var Dead = Redsource({ expires: {
             long: 60000,
             test: 1
-        }, mode:'race', client:deadclient }, Testsource);
+        }, mode:'readthrough', client:deadclient }, Testsource);
         new Dead({ delay:50 }, function(err, redsource) {
             if (err) throw err;
             deadsource = redsource;
