@@ -190,8 +190,8 @@ module.exports.cachingGet = function(namespace, options, get) {
                 var data;
                 if (encoded) try {
                     data = decode(encoded);
-                } catch(e) {
-                    e.key = key;
+                } catch(err) {
+                    err.key = key;
                     client.emit('error', err);
                 }
                 if (data) {
