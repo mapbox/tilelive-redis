@@ -75,8 +75,7 @@ module.exports.cachingGet = function(namespace, options, get) {
                     if (err && !errcode(err)) return client.emit('error', err);
 
                     headers = headers || {};
-                    headers = setExpires(headers, ttl);
-                    setEx(key, err, buffer, headers, stale);
+                    headers = setEx(key, err, buffer, headers, ttl, stale);
                 });
             } else {
                 // Cache miss, error, or otherwise no data
@@ -84,37 +83,35 @@ module.exports.cachingGet = function(namespace, options, get) {
                     if (err && !errcode(err)) return callback(err);
 
                     headers = headers || {};
-                    headers = setExpires(headers, ttl);
+                    headers = setEx(key, err, buffer, headers, ttl, stale);
                     callback(err, buffer, headers);
-                    setEx(key, err, buffer, headers, stale);
                 });
             }
         });
 
-        function setEx(key, err, buffer, headers, stale) {
-            var expires = +new Date(headers.expires);
-            var now = +new Date();
-            // seconds from now to expiration time
-            var sec = Math.ceil((expires - now)/1000);
-
-            // Expires is in the past, don't cache.
-            if (sec <= 0) return;
-
-            // stale is the number of extra seconds to cache an object
-            // past its expires time where we may serve a "stale"
-            // version of the object.
-            client.setex(key, sec + stale, encode(err, buffer, headers), function(err) {
-                if (!err) return;
-                err.key = key;
-                client.emit('error', err);
-            });
-        }
-
-        function setExpires(headers, ttl) {
+        function setEx(key, err, buffer, headers, ttl, stale) {
             var expires = headers.Expires || headers.expires;
             delete headers.Expires;
             delete headers.expires;
             headers.expires = expires || (new Date(Date.now() + (ttl * 1000))).toUTCString();
+
+            // seconds from now to expiration time
+            var sec = Math.ceil((Number(new Date(headers.expires)) - Number(new Date()))/1000);
+
+            // stale is the number of extra seconds to cache an object
+            // past its expires time where we may serve a "stale"
+            // version of the object.
+            //
+            // When an upstream expires is set no stale padding is used
+            // so that the upstream expires is fully respected.
+            var pad = expires ? 0 : stale;
+
+            if (sec > 0) client.setex(key, sec + pad, encode(err, buffer, headers), function(err) {
+                if (!err) return;
+                err.key = key;
+                client.emit('error', err);
+            });
+
             return headers;
         }
 

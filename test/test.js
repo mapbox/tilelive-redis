@@ -314,7 +314,7 @@ describe('relay', function() {
 describe('upstream expires', function() {
     var customExpires;
     var stats = {};
-    var options = { stale: 1 };
+    var options = {};
     var getter = function(id, callback) {
         stats[id] = stats[id] || 0;
         stats[id]++;
@@ -409,7 +409,7 @@ describe('cachingGet', function() {
         wrapped('asdf', function(err, data, headers) {
             assert.ifError(err);
             assert.deepEqual(data, {id:'asdf'}, 'returns data');
-            assert.deepEqual(Object.keys(headers), ['expires'], 'sets expires header');
+            assert.deepEqual(Object.keys(headers), ['expires', 'x-redis-json'], 'sets expires header');
             assert.equal(stats.asdf, 1, 'asdf IO x1');
             done();
         });
