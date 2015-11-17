@@ -25,7 +25,7 @@ describe('load', function() {
         var Source = Redsource({}, Testsource);
         assert.ok(Source.redis);
         assert.ok(Source.redis.client);
-        assert.ok(Source.redis.expires, 300);
+        assert.ok(Source.redis.ttl, 300);
         new Source('fakeuri', function(err, source) {
             assert.ifError(err);
             assert.ok(source instanceof Testsource);
@@ -33,23 +33,15 @@ describe('load', function() {
             done();
         });
     });
-    it('sets expires from opts', function(done) {
-        var Source = Redsource({ expires:5 }, Testsource);
+    it('sets ttl from opts', function(done) {
+        var Source = Redsource({ ttl:5 }, Testsource);
         assert.ok(Source.redis);
-        assert.ok(Source.redis.expires, 5);
-        done();
-    });
-    it('sets mode from opts', function(done) {
-        assert.throws(function() {
-            var Source = Redsource({ mode:'awesome' }, Testsource);
-        }, /Invalid value for options\.mode/);
-        var Source = Redsource({ mode:'race' }, Testsource);
-        assert.ok(Source.redis.mode, 'readthrough');
+        assert.ok(Source.redis.ttl, 5);
         done();
     });
     it('sets client from opts', function(done) {
         var client = redis.createClient({return_buffers: true});
-        var Source = Redsource({ client: client, expires:5 }, Testsource);
+        var Source = Redsource({ client: client, ttl:5 }, Testsource);
         assert.ok(Source.redis);
         assert.strictEqual(Source.redis.client, client);
         done();
@@ -92,14 +84,13 @@ describe('relay', function() {
     var deadsource;
     var stalesource;
     before(function(done) {
-        var Source = Redsource({ mode:'relay' }, Testsource);
+        var Source = Redsource({}, Testsource);
         Source.redis.client.flushdb(done);
     });
     before(function(done) {
         var Source = Redsource({
-            expires: 1,
-            ttl: 1,
-            mode:'relay'
+            stale: 1,
+            ttl: 1
         }, Testsource);
         new Source({ delay:50 }, function(err, redsource) {
             if (err) throw err;
@@ -109,9 +100,7 @@ describe('relay', function() {
     });
     before(function(done) {
         var Source = Redsource({
-            expires: 60000,
-            ttl: 60000,
-            mode:'relay'
+            ttl: 300
         }, Testsource);
         new Source({ hostname:'long', delay:50 }, function(err, redsource) {
             if (err) throw err;
@@ -121,9 +110,7 @@ describe('relay', function() {
     });
     before(function(done) {
         var Source = Redsource({
-            expires: 60000,
-            ttl: 1,
-            mode:'relay'
+            ttl: 1
         }, Testsource);
         new Source({ hostname:'stale', delay:50 }, function(err, redsource) {
             if (err) throw err;
@@ -132,7 +119,7 @@ describe('relay', function() {
         });
     });
     before(function(done) {
-        var Dead = Redsource({ expires: 1, mode:'relay', client:deadclient }, Testsource);
+        var Dead = Redsource({ stale: 1, client:deadclient }, Testsource);
         new Dead({ delay:50 }, function(err, redsource) {
             if (err) throw err;
             deadsource = redsource;
@@ -296,7 +283,7 @@ describe('relay', function() {
             hwmHit = true;
             assert.equal(err.message, 'Redis command queue at high water mark');
         };
-        var Source = Redsource({ mode:'relay' }, Testsource);
+        var Source = Redsource({}, Testsource);
         var source;
         before(function(done) {
             Source.redis.client.command_queue_high_water = 0;
@@ -326,7 +313,7 @@ describe('relay', function() {
 
 describe('cachingGet', function() {
     var stats = {};
-    var options = { mode: 'relay' };
+    var options = {};
     var getter = function(id, callback) {
         stats[id] = stats[id] || 0;
         stats[id]++;
