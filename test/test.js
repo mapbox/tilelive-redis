@@ -311,6 +311,72 @@ describe('relay', function() {
     });
 });
 
+describe('upstream expires', function() {
+    var customExpires;
+    var stats = {};
+    var options = { stale: 1 };
+    var getter = function(id, callback) {
+        stats[id] = stats[id] || 0;
+        stats[id]++;
+
+        if (id === 'missing') {
+            var err = new Error('Not found');
+            err.statusCode = 404;
+            return callback(err);
+        }
+        if (id === 'fatal') {
+            var err = new Error('Fatal');
+            err.statusCode = 500;
+            return callback(err);
+        }
+        if (id === 'nocode') {
+            var err = new Error('Unexpected');
+            return callback(err);
+        }
+
+        return callback(null, {id:id}, { Expires: customExpires });
+    };
+    var wrapped = Redsource.cachingGet('test', options, getter);
+    before(function(done) {
+        options.client.flushdb(done);
+        customExpires = (new Date(+new Date() + 1000)).toUTCString();
+    });
+    it('getter 200 miss', function(done) {
+        wrapped('asdf', function(err, data, headers) {
+            assert.ifError(err);
+            assert.deepEqual(data, {id:'asdf'}, 'returns data');
+            assert.deepEqual(headers.expires, customExpires, 'passes customExpires through');
+            assert.deepEqual(headers['x-redis'], undefined, 'cache miss');
+            assert.equal(stats.asdf, 1, 'asdf IO x1');
+            done();
+        });
+    });
+    it('getter 200 hit', function(done) {
+        wrapped('asdf', function(err, data, headers) {
+            assert.ifError(err);
+            assert.deepEqual(data, {id:'asdf'}, 'returns data');
+            assert.deepEqual(headers.expires, customExpires, 'passes customExpires through');
+            assert.deepEqual(headers['x-redis'], 'hit');
+            assert.deepEqual(headers['x-redis-json'], true);
+            assert.equal(stats.asdf, 1, 'asdf IO x1');
+            done();
+        });
+    });
+    it('getter 200 miss', function(done) {
+        this.timeout(4000);
+        setTimeout(function() {
+            wrapped('asdf', function(err, data, headers) {
+                assert.ifError(err);
+                assert.deepEqual(data, {id:'asdf'}, 'returns data');
+                assert.deepEqual(headers.expires, customExpires, 'passes customExpires through');
+                assert.deepEqual(headers['x-redis'], undefined, 'cache miss');
+                assert.equal(stats.asdf, 2, 'asdf IO x2');
+                done();
+            });
+        }, 3000);
+    });
+});
+
 describe('cachingGet', function() {
     var stats = {};
     var options = {};
