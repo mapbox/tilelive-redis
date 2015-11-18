@@ -7,9 +7,9 @@ Module for adding a redis-based caching layer in front a [node-tilejson](https:/
 It wraps `node-tilejson`, providing a new source constructor with redis superpowers:
 
     var options = {
-        mode: 'readthrough', // optional, cache mode either 'readthrough' or 'race'
         client: client, // optional, instantiated redis client
-        expires: 600    // optional, object expiration time in seconds
+        ttl: 300,       // optional, object cache ttl in seconds
+        stale: 300      // optional, max number of seconds to allow a stale object to be served
     };
     var TileJSON = require('tilelive-redis')(options, require('tilejson'));
 
@@ -18,14 +18,6 @@ It wraps `node-tilejson`, providing a new source constructor with redis superpow
 ### Requirements
 
 Required minimal/supported version of redis-server is 2.8.x
-
-### Cache modes
-
-Two modes for caching are available.
-
-- **readthrough** hits redis first and only calls a `get` on the original source if a cache miss occurs.
-- **race** always hits both redis and the original source concurrently. The IO operation that completes fastest will handle the `get` call. After both operations are complete the cache may be updated if the original source's contents have changed.
-- **relay** acts like readthrough, but, goes back to original source if object's headers.ttl is expired.
 
 ### Command queue high water mark
 
