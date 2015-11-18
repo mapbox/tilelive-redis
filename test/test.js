@@ -25,7 +25,7 @@ describe('load', function() {
         var Source = Redsource({}, Testsource);
         assert.ok(Source.redis);
         assert.ok(Source.redis.client);
-        assert.ok(Source.redis.expires, 300);
+        assert.ok(Source.redis.ttl, 300);
         new Source('fakeuri', function(err, source) {
             assert.ifError(err);
             assert.ok(source instanceof Testsource);
@@ -33,23 +33,15 @@ describe('load', function() {
             done();
         });
     });
-    it('sets expires from opts', function(done) {
-        var Source = Redsource({ expires:5 }, Testsource);
+    it('sets ttl from opts', function(done) {
+        var Source = Redsource({ ttl:5 }, Testsource);
         assert.ok(Source.redis);
-        assert.ok(Source.redis.expires, 5);
-        done();
-    });
-    it('sets mode from opts', function(done) {
-        assert.throws(function() {
-            var Source = Redsource({ mode:'awesome' }, Testsource);
-        }, /Invalid value for options\.mode/);
-        var Source = Redsource({ mode:'race' }, Testsource);
-        assert.ok(Source.redis.mode, 'readthrough');
+        assert.ok(Source.redis.ttl, 5);
         done();
     });
     it('sets client from opts', function(done) {
         var client = redis.createClient({return_buffers: true});
-        var Source = Redsource({ client: client, expires:5 }, Testsource);
+        var Source = Redsource({ client: client, ttl:5 }, Testsource);
         assert.ok(Source.redis);
         assert.strictEqual(Source.redis.client, client);
         done();
@@ -86,396 +78,20 @@ var error = function(message, cached, done) {
     };
 };
 
-describe('readthrough', function() {
-    var source;
-    var longsource;
-    var deadsource;
-    var Source = Redsource({ expires: {
-        long: 60000,
-        test: 1
-    } }, Testsource);
-    before(function(done) {
-        Source.redis.client.flushdb(done);
-    });
-    before(function(done) {
-        new Source('', function(err, redsource) {
-            if (err) throw err;
-            source = redsource;
-            done();
-        });
-    });
-    before(function(done) {
-        new Source({hostname:'long'}, function(err, redsource) {
-            if (err) throw err;
-            longsource = redsource;
-            done();
-        });
-    });
-    before(function(done) {
-        var Dead = Redsource({ expires: {
-            long: 60000,
-            test: 1
-        }, mode:'readthrough', client:deadclient }, Testsource);
-        new Dead({ delay:50 }, function(err, redsource) {
-            if (err) throw err;
-            deadsource = redsource;
-            done();
-        });
-    });
-    it('tile 200 a miss', function(done) {
-        source.getTile(0, 0, 0, tile(tiles.a, false, done));
-    });
-    it('tile 200 a hit', function(done) {
-        source.getTile(0, 0, 0, tile(tiles.a, true, done));
-    });
-    it('tile 200 b miss', function(done) {
-        source.getTile(1, 0, 0, tile(tiles.b, false, done));
-    });
-    it('tile 200 b hit', function(done) {
-        source.getTile(1, 0, 0, tile(tiles.b, true, done));
-    });
-    it('tile 40x miss', function(done) {
-        source.getTile(4, 0, 0,error('Tile does not exist', false, done));
-    });
-    it('tile 40x hit', function(done) {
-        source.getTile(4, 0, 0, error('Tile does not exist', true, done));
-    });
-    it('tile 500 miss', function(done) {
-        source.getTile(2, 0, 0, error('Unexpected error', false, done));
-    });
-    it('tile 500 miss', function(done) {
-        source.getTile(2, 0, 0, error('Unexpected error', false, done));
-    });
-    it('grid 200 a miss', function(done) {
-        source.getGrid(0, 0, 0, grid(grids.a, false, done));
-    });
-    it('grid 200 a hit', function(done) {
-        source.getGrid(0, 0, 0, grid(grids.a, true, done));
-    });
-    it('grid 200 b miss', function(done) {
-        source.getGrid(1, 0, 0, grid(grids.b, false, done));
-    });
-    it('grid 200 b hit', function(done) {
-        source.getGrid(1, 0, 0, grid(grids.b, true, done));
-    });
-    it('grid 40x miss', function(done) {
-        source.getGrid(4, 0, 0, error('Grid does not exist', false, done));
-    });
-    it('grid 40x hit', function(done) {
-        source.getGrid(4, 0, 0, error('Grid does not exist', true, done));
-    });
-    it('long tile 200 a miss', function(done) {
-        longsource.getTile(0, 0, 0, tile(tiles.a, false, done));
-    });
-    it('long tile 200 b miss', function(done) {
-        longsource.getTile(1, 0, 0, tile(tiles.b, false, done));
-    });
-    it('long grid 200 a miss', function(done) {
-        longsource.getGrid(0, 0, 0, grid(grids.a, false, done));
-    });
-    it('long grid 200 b miss', function(done) {
-        longsource.getGrid(1, 0, 0, grid(grids.b, false, done));
-    });
-    it('dead tile 200 a miss', function(done) {
-        deadsource.getTile(0, 0, 0, tile(tiles.a, false, done));
-    });
-    it('dead tile 200 b miss', function(done) {
-        deadsource.getTile(1, 0, 0, tile(tiles.b, false, done));
-    });
-    it('dead grid 200 a miss', function(done) {
-        deadsource.getGrid(0, 0, 0, grid(grids.a, false, done));
-    });
-    it('dead grid 200 b miss', function(done) {
-        deadsource.getGrid(1, 0, 0, grid(grids.b, false, done));
-    });
-    describe('expires', function() {
-        before(function(done) {
-            setTimeout(done, 1000);
-        });
-        it('tile 200 a expires', function(done) {
-            source.getTile(0, 0, 0, tile(tiles.a, false, done));
-        });
-        it('tile 200 b expires', function(done) {
-            source.getTile(1, 0, 0, tile(tiles.b, false, done));
-        });
-        it('tile 40x expires', function(done) {
-            source.getTile(4, 0, 0, error('Tile does not exist', false, done));
-        });
-        it('grid 200 a expires', function(done) {
-            source.getGrid(0, 0, 0, grid(grids.a, false, done));
-        });
-        it('grid 200 b expires', function(done) {
-            source.getGrid(1, 0, 0, grid(grids.b, false, done));
-        });
-        it('grid 40x expires', function(done) {
-            source.getGrid(4, 0, 0, error('Grid does not exist', false, done));
-        });
-        it('long tile 200 a hit', function(done) {
-            longsource.getTile(0, 0, 0, tile(tiles.a, true, done));
-        });
-        it('long tile 200 b hit', function(done) {
-            longsource.getTile(1, 0, 0, tile(tiles.b, true, done));
-        });
-        it('long grid 200 a hit', function(done) {
-            longsource.getGrid(0, 0, 0, grid(grids.a, true, done));
-        });
-        it('long grid 200 b hit', function(done) {
-            longsource.getGrid(1, 0, 0, grid(grids.b, true, done));
-        });
-        it('dead tile 200 a miss', function(done) {
-            deadsource.getTile(0, 0, 0, tile(tiles.a, false, done));
-        });
-        it('dead tile 200 b miss', function(done) {
-            deadsource.getTile(1, 0, 0, tile(tiles.b, false, done));
-        });
-        it('dead grid 200 a miss', function(done) {
-            deadsource.getGrid(0, 0, 0, grid(grids.a, false, done));
-        });
-        it('dead grid 200 b miss', function(done) {
-            deadsource.getGrid(1, 0, 0, grid(grids.b, false, done));
-        });
-    });
-    describe('high water mark', function() {
-        var hwmHit;
-        var highwater = function(err) {
-            hwmHit = true;
-            assert.equal(err.message, 'Redis command queue at high water mark');
-        };
-        before(function(done) {
-            Source.redis.client.command_queue_high_water = 0;
-            Source.redis.client.on('error', highwater);
-            done();
-        });
-        after(function(done) {
-            Source.redis.client.command_queue_high_water = 1000;
-            Source.redis.client.removeListener('error', highwater);
-            done();
-        });
-        it('error on high water mark', function(done) {
-            source.getTile(0, 0, 0, function(err, res) {
-                assert.equal(hwmHit, true);
-                done();
-            });
-        });
-    });
-});
-
-describe('race', function() {
-    var source;
-    var longsource;
-    var fastsource;
-    var deadsource;
-    var Source = Redsource({ expires: {
-        long: 60000,
-        test: 1
-    }, mode:'race' }, Testsource);
-    before(function(done) {
-        Source.redis.client.flushdb(done);
-    });
-    before(function(done) {
-        new Source({ delay:50 }, function(err, redsource) {
-            if (err) throw err;
-            source = redsource;
-            done();
-        });
-    });
-    before(function(done) {
-        new Source({ hostname:'long', delay:50 }, function(err, redsource) {
-            if (err) throw err;
-            longsource = redsource;
-            done();
-        });
-    });
-    before(function(done) {
-        new Source({ delay:0 }, function(err, redsource) {
-            if (err) throw err;
-            fastsource = redsource;
-            done();
-        });
-    });
-    before(function(done) {
-        var Dead = Redsource({ expires: {
-            long: 60000,
-            test: 1
-        }, mode:'race', client:deadclient }, Testsource);
-        new Dead({ delay:50 }, function(err, redsource) {
-            if (err) throw err;
-            deadsource = redsource;
-            done();
-        });
-    });
-    it('tile 200 a miss', function(done) {
-        source.getTile(0, 0, 0, tile(tiles.a, false, done));
-    });
-    it('tile 200 a hit', function(done) {
-        source.getTile(0, 0, 0, tile(tiles.a, true, done));
-    });
-    it('tile 200 b miss', function(done) {
-        source.getTile(1, 0, 0, tile(tiles.b, false, done));
-    });
-    it('tile 200 b hit', function(done) {
-        source.getTile(1, 0, 0, tile(tiles.b, true, done));
-    });
-    it('tile 40x miss', function(done) {
-        source.getTile(4, 0, 0, error('Tile does not exist', false, done));
-    });
-    it('tile 40x hit', function(done) {
-        source.getTile(4, 0, 0, error('Tile does not exist', true, done));
-    });
-    it('tile 500 miss', function(done) {
-        source.getTile(2, 0, 0, error('Unexpected error', false, done));
-    });
-    it('tile 500 miss', function(done) {
-        source.getTile(2, 0, 0, error('Unexpected error', false, done));
-    });
-    it('grid 200 a miss', function(done) {
-        source.getGrid(0, 0, 0, grid(grids.a, false, done));
-    });
-    it('grid 200 a hit', function(done) {
-        source.getGrid(0, 0, 0, grid(grids.a, true, done));
-    });
-    it('grid 200 b miss', function(done) {
-        source.getGrid(1, 0, 0, grid(grids.b, false, done));
-    });
-    it('grid 200 b hit', function(done) {
-        source.getGrid(1, 0, 0, grid(grids.b, true, done));
-    });
-    it('grid 40x miss', function(done) {
-        source.getGrid(4, 0, 0, error('Grid does not exist', false, done));
-    });
-    it('grid 40x hit', function(done) {
-        source.getGrid(4, 0, 0, error('Grid does not exist', true, done));
-    });
-    it('fast tile 200 a miss', function(done) {
-        fastsource.getTile(0, 0, 0, tile(tiles.a, false, done));
-    });
-    it('fast tile 200 a miss', function(done) {
-        fastsource.getTile(0, 0, 0, tile(tiles.a, false, done));
-    });
-    it('fast grid 200 a miss', function(done) {
-        fastsource.getGrid(0, 0, 0, grid(grids.a, false, done));
-    });
-    it('fast grid 200 a miss', function(done) {
-        fastsource.getGrid(0, 0, 0, grid(grids.a, false, done));
-    });
-    it('long tile 200 a miss', function(done) {
-        longsource.getTile(0, 0, 0, tile(tiles.a, false, done));
-    });
-    it('long tile 200 b miss', function(done) {
-        longsource.getTile(1, 0, 0, tile(tiles.b, false, done));
-    });
-    it('long grid 200 a miss', function(done) {
-        longsource.getGrid(0, 0, 0, grid(grids.a, false, done));
-    });
-    it('long grid 200 b miss', function(done) {
-        longsource.getGrid(1, 0, 0, grid(grids.b, false, done));
-    });
-    it('dead tile 200 a miss', function(done) {
-        deadsource.getTile(0, 0, 0, tile(tiles.a, false, done));
-    });
-    it('dead tile 200 b miss', function(done) {
-        deadsource.getTile(1, 0, 0, tile(tiles.b, false, done));
-    });
-    it('dead grid 200 a miss', function(done) {
-        deadsource.getGrid(0, 0, 0, grid(grids.a, false, done));
-    });
-    it('dead grid 200 b miss', function(done) {
-        deadsource.getGrid(1, 0, 0, grid(grids.b, false, done));
-    });
-    describe('expires', function() {
-        before(function(done) {
-            setTimeout(done, 1000);
-        });
-        it('tile 200 a expires', function(done) {
-            source.getTile(0, 0, 0, tile(tiles.a, false, done));
-        });
-        it('tile 200 b expires', function(done) {
-            source.getTile(1, 0, 0, tile(tiles.b, false, done));
-        });
-        it('tile 40x expires', function(done) {
-            source.getTile(4, 0, 0, error('Tile does not exist', false, done));
-        });
-        it('grid 200 a expires', function(done) {
-            source.getGrid(0, 0, 0, grid(grids.a, false, done));
-        });
-        it('grid 200 b expires', function(done) {
-            source.getGrid(1, 0, 0, grid(grids.b, false, done));
-        });
-        it('grid 40x expires', function(done) {
-            source.getGrid(4, 0, 0, error('Grid does not exist', false, done));
-        });
-        it('long tile 200 a hit', function(done) {
-            longsource.getTile(0, 0, 0, tile(tiles.a, true, done));
-        });
-        it('long tile 200 b hit', function(done) {
-            longsource.getTile(1, 0, 0, tile(tiles.b, true, done));
-        });
-        it('long grid 200 a hit', function(done) {
-            longsource.getGrid(0, 0, 0, grid(grids.a, true, done));
-        });
-        it('long grid 200 b hit', function(done) {
-            longsource.getGrid(1, 0, 0, grid(grids.b, true, done));
-        });
-        it('dead tile 200 a miss', function(done) {
-            deadsource.getTile(0, 0, 0, tile(tiles.a, false, done));
-        });
-        it('dead tile 200 b miss', function(done) {
-            deadsource.getTile(1, 0, 0, tile(tiles.b, false, done));
-        });
-        it('dead grid 200 a miss', function(done) {
-            deadsource.getGrid(0, 0, 0, grid(grids.a, false, done));
-        });
-        it('dead grid 200 b miss', function(done) {
-            deadsource.getGrid(1, 0, 0, grid(grids.b, false, done));
-        });
-    });
-    describe('high water mark', function() {
-        var hwmHit;
-        var highwater = function(err) {
-            hwmHit = true;
-            assert.equal(err.message, 'Redis command queue at high water mark');
-        };
-        before(function(done) {
-            Source.redis.client.command_queue_high_water = 0;
-            Source.redis.client.on('error', highwater);
-            done();
-        });
-        after(function(done) {
-            Source.redis.client.command_queue_high_water = 1000;
-            Source.redis.client.removeListener('error', highwater);
-            done();
-        });
-        it('error on high water mark', function(done) {
-            source.getTile(0, 0, 0, function(err, res) {
-                assert.equal(hwmHit, true);
-                done();
-            });
-        });
-    });
-});
-
 describe('relay', function() {
     var source;
     var longsource;
     var deadsource;
     var stalesource;
-    var Source = Redsource({
-        expires: {
-            long: 60000,
-            stale: 60000,
-            test: 1
-        },
-        ttl: {
-            long: 60000,
-            stale: 1,
-            test: 1
-        },
-        mode:'relay'
-    }, Testsource);
     before(function(done) {
+        var Source = Redsource({}, Testsource);
         Source.redis.client.flushdb(done);
     });
     before(function(done) {
+        var Source = Redsource({
+            stale: 1,
+            ttl: 1
+        }, Testsource);
         new Source({ delay:50 }, function(err, redsource) {
             if (err) throw err;
             source = redsource;
@@ -483,6 +99,9 @@ describe('relay', function() {
         });
     });
     before(function(done) {
+        var Source = Redsource({
+            ttl: 300
+        }, Testsource);
         new Source({ hostname:'long', delay:50 }, function(err, redsource) {
             if (err) throw err;
             longsource = redsource;
@@ -490,6 +109,9 @@ describe('relay', function() {
         });
     });
     before(function(done) {
+        var Source = Redsource({
+            ttl: 1
+        }, Testsource);
         new Source({ hostname:'stale', delay:50 }, function(err, redsource) {
             if (err) throw err;
             stalesource = redsource;
@@ -497,10 +119,7 @@ describe('relay', function() {
         });
     });
     before(function(done) {
-        var Dead = Redsource({ expires: {
-            long: 60000,
-            test: 1
-        }, mode:'relay', client:deadclient }, Testsource);
+        var Dead = Redsource({ stale: 1, client:deadclient }, Testsource);
         new Dead({ delay:50 }, function(err, redsource) {
             if (err) throw err;
             deadsource = redsource;
@@ -664,10 +283,19 @@ describe('relay', function() {
             hwmHit = true;
             assert.equal(err.message, 'Redis command queue at high water mark');
         };
+        var Source = Redsource({}, Testsource);
+        var source;
         before(function(done) {
             Source.redis.client.command_queue_high_water = 0;
             Source.redis.client.on('error', highwater);
             done();
+        });
+        before(function(done) {
+            new Source({ delay:50 }, function(err, redsource) {
+                if (err) throw err;
+                source = redsource;
+                done();
+            });
         });
         after(function(done) {
             Source.redis.client.command_queue_high_water = 1000;
@@ -683,9 +311,75 @@ describe('relay', function() {
     });
 });
 
+describe('upstream expires', function() {
+    var customExpires;
+    var stats = {};
+    var options = {};
+    var getter = function(id, callback) {
+        stats[id] = stats[id] || 0;
+        stats[id]++;
+
+        if (id === 'missing') {
+            var err = new Error('Not found');
+            err.statusCode = 404;
+            return callback(err);
+        }
+        if (id === 'fatal') {
+            var err = new Error('Fatal');
+            err.statusCode = 500;
+            return callback(err);
+        }
+        if (id === 'nocode') {
+            var err = new Error('Unexpected');
+            return callback(err);
+        }
+
+        return callback(null, {id:id}, { Expires: customExpires });
+    };
+    var wrapped = Redsource.cachingGet('test', options, getter);
+    before(function(done) {
+        options.client.flushdb(done);
+        customExpires = (new Date(+new Date() + 1000)).toUTCString();
+    });
+    it('getter 200 miss', function(done) {
+        wrapped('asdf', function(err, data, headers) {
+            assert.ifError(err);
+            assert.deepEqual(data, {id:'asdf'}, 'returns data');
+            assert.deepEqual(headers.expires, customExpires, 'passes customExpires through');
+            assert.deepEqual(headers['x-redis'], undefined, 'cache miss');
+            assert.equal(stats.asdf, 1, 'asdf IO x1');
+            done();
+        });
+    });
+    it('getter 200 hit', function(done) {
+        wrapped('asdf', function(err, data, headers) {
+            assert.ifError(err);
+            assert.deepEqual(data, {id:'asdf'}, 'returns data');
+            assert.deepEqual(headers.expires, customExpires, 'passes customExpires through');
+            assert.deepEqual(headers['x-redis'], 'hit');
+            assert.deepEqual(headers['x-redis-json'], true);
+            assert.equal(stats.asdf, 1, 'asdf IO x1');
+            done();
+        });
+    });
+    it('getter 200 miss', function(done) {
+        this.timeout(4000);
+        setTimeout(function() {
+            wrapped('asdf', function(err, data, headers) {
+                assert.ifError(err);
+                assert.deepEqual(data, {id:'asdf'}, 'returns data');
+                assert.deepEqual(headers.expires, customExpires, 'passes customExpires through');
+                assert.deepEqual(headers['x-redis'], undefined, 'cache miss');
+                assert.equal(stats.asdf, 2, 'asdf IO x2');
+                done();
+            });
+        }, 3000);
+    });
+});
+
 describe('cachingGet', function() {
     var stats = {};
-    var options = { mode: 'readthrough' };
+    var options = {};
     var getter = function(id, callback) {
         stats[id] = stats[id] || 0;
         stats[id]++;
@@ -715,7 +409,7 @@ describe('cachingGet', function() {
         wrapped('asdf', function(err, data, headers) {
             assert.ifError(err);
             assert.deepEqual(data, {id:'asdf'}, 'returns data');
-            assert.ok(!headers, 'no headers');
+            assert.deepEqual(Object.keys(headers), ['expires', 'x-redis-json'], 'sets expires header');
             assert.equal(stats.asdf, 1, 'asdf IO x1');
             done();
         });
@@ -724,7 +418,9 @@ describe('cachingGet', function() {
         wrapped('asdf', function(err, data, headers) {
             assert.ifError(err);
             assert.deepEqual(data, {id:'asdf'}, 'returns data');
-            assert.deepEqual(headers, {'x-redis-json':true, 'x-redis':'hit'}, 'headers, hit');
+            assert.deepEqual(Object.keys(headers), ['expires', 'x-redis-json', 'x-redis'], 'sets expires header');
+            assert.deepEqual(headers['x-redis'], 'hit');
+            assert.deepEqual(headers['x-redis-json'], true);
             assert.equal(stats.asdf, 1, 'asdf IO x1');
             done();
         });
@@ -733,7 +429,7 @@ describe('cachingGet', function() {
         wrapped('missing', function(err, data, headers) {
             assert.equal(err.toString(), 'Error: Not found', 'not found err');
             assert.equal(err.statusCode, 404, 'err statusCode 404');
-            assert.ok(!headers, 'no headers');
+            assert.deepEqual(Object.keys(headers), ['expires'], 'sets expires header');
             assert.equal(stats.missing, 1, 'missing IO x1');
             done();
         });
