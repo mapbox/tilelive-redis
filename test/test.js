@@ -255,10 +255,10 @@ describe('relay', function() {
     describe('refresh', function() {
         it('long tile 200 a hit', function(done) {
             longsource.getTile(0, 0, 0, function(err, data, headers) {
-                var origExpires = headers.expires;
+                var origExpires = headers['x-redis-expires'];
                 setTimeout(function() {
                     longsource.getTile(0, 0, 0, function(err, data, headers) {
-                        assert.equal(origExpires, headers.expires);
+                        assert.equal(origExpires, headers['x-redis-expires']);
                         tile(tiles.a, true, done)(err, data, headers);
                     });
                 }, 500);
@@ -266,10 +266,10 @@ describe('relay', function() {
         });
         it('stale tile 200 a refresh hit', function(done) {
             stalesource.getTile(0, 0, 0, function(err, data, headers) {
-                var origExpires = headers.expires;
+                var origExpires = headers['x-redis-expires'];
                 setTimeout(function() {
                     stalesource.getTile(0, 0, 0, function(err, data, headers) {
-                        assert.notEqual(origExpires, headers.expires);
+                        assert.notEqual(origExpires, headers['x-redis-expires']);
                         tile(tiles.a, true, done)(err, data, headers);
                     });
                 }, 500);
@@ -346,6 +346,7 @@ describe('upstream expires', function() {
             assert.ifError(err);
             assert.deepEqual(data, {id:'asdf'}, 'returns data');
             assert.deepEqual(headers.expires, customExpires, 'passes customExpires through');
+            assert.deepEqual(headers['x-redis-expires'], customExpires, 'sets x-redis-expires based on customExpires');
             assert.deepEqual(headers['x-redis'], undefined, 'cache miss');
             assert.equal(stats.asdf, 1, 'asdf IO x1');
             done();
@@ -356,6 +357,7 @@ describe('upstream expires', function() {
             assert.ifError(err);
             assert.deepEqual(data, {id:'asdf'}, 'returns data');
             assert.deepEqual(headers.expires, customExpires, 'passes customExpires through');
+            assert.deepEqual(headers['x-redis-expires'], customExpires, 'sets x-redis-expires based on customExpires');
             assert.deepEqual(headers['x-redis'], 'hit');
             assert.deepEqual(headers['x-redis-json'], true);
             assert.equal(stats.asdf, 1, 'asdf IO x1');
@@ -369,6 +371,7 @@ describe('upstream expires', function() {
                 assert.ifError(err);
                 assert.deepEqual(data, {id:'asdf'}, 'returns data');
                 assert.deepEqual(headers.expires, customExpires, 'passes customExpires through');
+                assert.deepEqual(headers['x-redis-expires'], customExpires, 'sets x-redis-expires based on customExpires');
                 assert.deepEqual(headers['x-redis'], undefined, 'cache miss');
                 assert.equal(stats.asdf, 2, 'asdf IO x2');
                 done();
@@ -409,7 +412,7 @@ describe('cachingGet', function() {
         wrapped('asdf', function(err, data, headers) {
             assert.ifError(err);
             assert.deepEqual(data, {id:'asdf'}, 'returns data');
-            assert.deepEqual(Object.keys(headers), ['expires', 'x-redis-json'], 'sets expires header');
+            assert.deepEqual(Object.keys(headers), ['x-redis-expires', 'x-redis-json'], 'sets x-redis-expires header');
             assert.equal(stats.asdf, 1, 'asdf IO x1');
             done();
         });
@@ -418,7 +421,7 @@ describe('cachingGet', function() {
         wrapped('asdf', function(err, data, headers) {
             assert.ifError(err);
             assert.deepEqual(data, {id:'asdf'}, 'returns data');
-            assert.deepEqual(Object.keys(headers), ['expires', 'x-redis-json', 'x-redis'], 'sets expires header');
+            assert.deepEqual(Object.keys(headers), ['x-redis-expires', 'x-redis-json', 'x-redis'], 'sets x-redis-expires header');
             assert.deepEqual(headers['x-redis'], 'hit');
             assert.deepEqual(headers['x-redis-json'], true);
             assert.equal(stats.asdf, 1, 'asdf IO x1');
@@ -429,7 +432,7 @@ describe('cachingGet', function() {
         wrapped('missing', function(err, data, headers) {
             assert.equal(err.toString(), 'Error: Not found', 'not found err');
             assert.equal(err.statusCode, 404, 'err statusCode 404');
-            assert.deepEqual(Object.keys(headers), ['expires'], 'sets expires header');
+            assert.deepEqual(Object.keys(headers), ['x-redis-expires'], 'sets x-redis-expires header');
             assert.equal(stats.missing, 1, 'missing IO x1');
             done();
         });

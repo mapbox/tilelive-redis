@@ -93,10 +93,15 @@ module.exports.cachingGet = function(namespace, options, get) {
             var expires = headers.Expires || headers.expires;
             delete headers.Expires;
             delete headers.expires;
-            headers.expires = expires || (new Date(Date.now() + (ttl * 1000))).toUTCString();
+            if (expires) {
+                headers.expires = expires;
+                headers['x-redis-expires'] = expires;
+            } else {
+                headers['x-redis-expires'] = (new Date(Date.now() + (ttl * 1000))).toUTCString();
+            }
 
             // seconds from now to expiration time
-            var sec = Math.ceil((Number(new Date(headers.expires)) - Number(new Date()))/1000);
+            var sec = Math.ceil((Number(new Date(headers['x-redis-expires'])) - Number(new Date()))/1000);
 
             // stale is the number of extra seconds to cache an object
             // past its expires time where we may serve a "stale"
@@ -117,9 +122,9 @@ module.exports.cachingGet = function(namespace, options, get) {
 
         function isFresh(d) {
             // When we don't have an expires header just assume staleness
-            if (d.headers === undefined || !d.headers.expires) return false;
+            if (d.headers === undefined || !d.headers['x-redis-expires']) return false;
 
-            return (+(new Date(d.headers.expires)) > Date.now());
+            return (+(new Date(d.headers['x-redis-expires'])) > Date.now());
         }
     }
 
