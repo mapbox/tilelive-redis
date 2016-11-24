@@ -277,6 +277,39 @@ describe('relay', function() {
         });
     });
 
+    it('stale tile 40x', function(done) {
+        var gets = stalesource.stat.get;
+        req1();
+        function req1() {
+            stalesource.getTile(4, 0, 0, function(err, data, headers) {
+                assert.equal(err.toString(), 'Error: Tile does not exist');
+                assert.equal(stalesource.stat.get, ++gets, 'cache miss, does i/o');
+                req2();
+            });
+        }
+        function req2() {
+            stalesource.getTile(4, 0, 0, function(err, data, headers) {
+                assert.equal(err.toString(), 'Error: Tile does not exist');
+                assert.equal(stalesource.stat.get, gets, 'returns stale error object before doing i/o');
+                req3();
+            });
+        }
+        function req3() {
+            stalesource.getTile(4, 0, 0, function(err, data, headers) {
+                assert.equal(err.toString(), 'Error: Tile does not exist');
+                assert.equal(stalesource.stat.get, ++gets, 'has done i/o for previous stale get');
+                req4();
+            });
+        }
+        function req4() {
+            stalesource.getTile(4, 0, 0, function(err, data, headers) {
+                assert.equal(err.toString(), 'Error: Tile does not exist');
+                assert.equal(stalesource.stat.get, ++gets, 'has done i/o for previous stale get');
+                done();
+            });
+        }
+    });
+
     describe('high water mark', function() {
         var hwmHit;
         var highwater = function(err) {
