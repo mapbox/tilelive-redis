@@ -189,7 +189,12 @@ function decode(encoded) {
     // First 1024 bytes reserved for header + padding.
     var offset = 1024;
     var data = {};
-    data.headers = encoded.slice(0, offset).toString().trim();
+    // If 1024 or less, then it is only headers
+    if (encoded.length > 1024) {
+        data.headers = encoded.slice(0, offset).toString().trim();
+    } else {
+        data.headers = encoded;
+    }
 
     try {
         data.headers = JSON.parse(data.headers);
