@@ -432,7 +432,7 @@ describe('cachingGet', function() {
         wrapped('missing', function(err, data, headers) {
             assert.equal(err.toString(), 'Error: Not found', 'not found err');
             assert.equal(err.statusCode, 404, 'err statusCode 404');
-            assert.deepEqual(Object.keys(headers), ['x-redis-expires'], 'sets x-redis-expires header');
+            assert.deepEqual(Object.keys(headers), ['x-redis-expires', 'x-redis-err'], 'sets x-redis-expires header');
             assert.equal(stats.missing, 1, 'missing IO x1');
             done();
         });
@@ -489,8 +489,12 @@ describe('unit', function() {
         var errstatCode404 = new Error(); errstatCode404.statusCode = 404;
         var errstatCode403 = new Error(); errstatCode403.statusCode = 403;
         var errstatCode500 = new Error(); errstatCode500.statusCode = 500;
-        assert.equal(Redsource.encode(errstatCode404), '404');
-        assert.equal(Redsource.encode(errstatCode403), '403');
+        assert.ok(bufferEqual(Redsource.encode(errstatCode404), new Buffer(
+            '{"x-redis-err":"404"}'
+        )));
+        assert.ok(bufferEqual(Redsource.encode(errstatCode403), new Buffer(
+            '{"x-redis-err":"403"}'
+        )));
         assert.equal(Redsource.encode(errstatCode500), null);
 
         assert.ok(bufferEqual(Redsource.encode(null, {id:'foo'}), new Buffer(
