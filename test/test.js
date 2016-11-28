@@ -126,7 +126,6 @@ describe('relay', function() {
             done();
         });
     });
-
     it('tile 200 a miss', function(done) {
         source.getTile(0, 0, 0, tile(tiles.a, false, done));
     });
@@ -277,6 +276,39 @@ describe('relay', function() {
         });
     });
 
+    it('stale tile 40x', function(done) {
+        var gets = stalesource.stat.get;
+        req1();
+        function req1() {
+            stalesource.getTile(4, 0, 0, function(err, data, headers) {
+                assert.equal(err.toString(), 'Error: Tile does not exist');
+                assert.equal(stalesource.stat.get, ++gets, 'cache miss, does i/o');
+                req2();
+            });
+        }
+        function req2() {
+            stalesource.getTile(4, 0, 0, function(err, data, headers) {
+                assert.equal(err.toString(), 'Error: Tile does not exist');
+                assert.equal(stalesource.stat.get, gets, 'returns stale error object before doing i/o');
+                req3();
+            });
+        }
+        function req3() {
+            stalesource.getTile(4, 0, 0, function(err, data, headers) {
+                assert.equal(err.toString(), 'Error: Tile does not exist');
+                assert.equal(stalesource.stat.get, gets, 'has not done i/o for previous stale get');
+                req4();
+            });
+        }
+        function req4() {
+            stalesource.getTile(4, 0, 0, function(err, data, headers) {
+                assert.equal(err.toString(), 'Error: Tile does not exist');
+                assert.equal(stalesource.stat.get, gets, 'has not done i/o for previous stale get');
+                done();
+            });
+        }
+    });
+
     describe('high water mark', function() {
         var hwmHit;
         var highwater = function(err) {
@@ -322,6 +354,11 @@ describe('upstream expires', function() {
         if (id === 'missing') {
             var err = new Error('Not found');
             err.statusCode = 404;
+            return callback(err);
+        }
+        if (id === 'denied') {
+            var err = new Error('Access denied');
+            err.statusCode = 403;
             return callback(err);
         }
         if (id === 'fatal') {
@@ -387,6 +424,11 @@ describe('cachingGet', function() {
         stats[id] = stats[id] || 0;
         stats[id]++;
 
+        if (id === 'denied') {
+            var err = new Error('Access denied');
+            err.statusCode = 403;
+            return callback(err);
+        }
         if (id === 'missing') {
             var err = new Error('Not found');
             err.statusCode = 404;
@@ -428,6 +470,23 @@ describe('cachingGet', function() {
             done();
         });
     });
+    it('getter 403 miss', function(done) {
+        wrapped('denied', function(err, data, headers) {
+            assert.equal(err.toString(), 'Error: Access denied', 'access denied err');
+            assert.equal(err.statusCode, 403, 'err statusCode 403');
+            assert.deepEqual(Object.keys(headers), ['x-redis-expires', 'x-redis-err'], 'sets x-redis-expires header');
+            assert.equal(stats.denied, 1, 'missing IO x1');
+            done();
+        });
+    });
+    it('getter 403 hit', function(done) {
+        wrapped('denied', function(err, data, headers) {
+            assert.equal(err.toString(), 'Error', 'access denied err');
+            assert.equal(err.statusCode, 403, 'err statusCode 403');
+            assert.equal(stats.denied, 1, 'missing IO x1');
+            done();
+        });
+    });
     it('getter 404 miss', function(done) {
         wrapped('missing', function(err, data, headers) {
             assert.equal(err.toString(), 'Error: Not found', 'not found err');
@@ -441,7 +500,6 @@ describe('cachingGet', function() {
         wrapped('missing', function(err, data, headers) {
             assert.equal(err.toString(), 'Error', 'not found err');
             assert.equal(err.statusCode, 404, 'err statusCode 404');
-            assert.ok(!headers, 'no headers');
             assert.equal(stats.missing, 1, 'missing IO x1');
             done();
         });
@@ -530,6 +588,16 @@ describe('unit', function() {
     it('decode', function(done) {
         assert.deepEqual(Redsource.decode('404'), {err:{statusCode:404,redis:true}});
         assert.deepEqual(Redsource.decode('403'), {err:{statusCode:403,redis:true}});
+
+        assert.deepEqual(
+            Redsource.decode(new Buffer('{"x-redis-err":"404","x-redis":"hit"}')),
+            {err:{statusCode:404,redis:true}, headers:{'x-redis-err': '404','x-redis': 'hit'}}
+        );
+
+        assert.deepEqual(
+            Redsource.decode(new Buffer('{"x-redis-err":"403","x-redis":"hit"}')),
+            {err:{statusCode:403,redis:true}, headers:{'x-redis-err': '403','x-redis': 'hit'}}
+        );
 
         var headers = JSON.stringify({'x-redis-json':true,'x-redis':'hit'});
         var encoded = new Buffer(

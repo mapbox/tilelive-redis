@@ -208,7 +208,7 @@ function decode(encoded) {
         var err = new Error();
         err.statusCode = parseInt(data.headers['x-redis-err'], 10);
         err.redis = true;
-        return { err: err };
+        return { err: err, headers: data.headers };
     }
 
     data.buffer = encoded.slice(offset);

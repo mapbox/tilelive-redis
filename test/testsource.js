@@ -36,13 +36,14 @@ Testsource.prototype.get = function(url, callback) {
     var stat = this.stat;
 
     if (this.delay) {
+        stat.get++;
         setTimeout(function() { get(url, callback); }, this.delay);
     } else {
+        stat.get++;
         get();
     }
 
     function get() {
-        stat.get++;
         switch (url) {
         case 'http://test/0/0/0.png':
             return callback(null, tiles.a, {
