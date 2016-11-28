@@ -198,7 +198,6 @@ function decode(encoded) {
     }
 
     data.headers['x-redis'] = 'hit';
-    data.buffer = encoded.slice(offset);
 
     if (data.headers['x-redis-err']) {
         var err = new Error();
@@ -206,6 +205,8 @@ function decode(encoded) {
         err.redis = true;
         return { err: err };
     }
+
+    data.buffer = encoded.slice(offset);
 
     // Return JSON-encoded objects to true form.
     if (data.headers['x-redis-json']) data.buffer = JSON.parse(data.buffer);
