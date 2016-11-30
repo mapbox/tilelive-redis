@@ -143,12 +143,16 @@ function errcode(err) {
 }
 
 function encode(err, buffer, headers) {
-    if (errcode(err)) return errcode(err).toString();
-
     // Unhandled error.
-    if (err) return null;
+    if (err && !errcode(err)) return null;
 
     headers = headers || {};
+
+    if (err)  {
+        headers['x-redis-err'] = errcode(err).toString();
+        headers = new Buffer(JSON.stringify(headers), 'utf8');
+        return headers;
+    }
 
     // Turn objects into JSON string buffers.
     if (buffer && typeof buffer === 'object' && !(buffer instanceof Buffer)) {
@@ -185,7 +189,12 @@ function decode(encoded) {
     // First 1024 bytes reserved for header + padding.
     var offset = 1024;
     var data = {};
-    data.headers = encoded.slice(0, offset).toString().trim();
+    // If 1024 or less, then it is only headers
+    if (encoded.length > 1024) {
+        data.headers = encoded.slice(0, offset).toString().trim();
+    } else {
+        data.headers = encoded;
+    }
 
     try {
         data.headers = JSON.parse(data.headers);
@@ -194,6 +203,14 @@ function decode(encoded) {
     }
 
     data.headers['x-redis'] = 'hit';
+
+    if (data.headers['x-redis-err']) {
+        var err = new Error();
+        err.statusCode = parseInt(data.headers['x-redis-err'], 10);
+        err.redis = true;
+        return { err: err, headers: data.headers };
+    }
+
     data.buffer = encoded.slice(offset);
 
     // Return JSON-encoded objects to true form.
