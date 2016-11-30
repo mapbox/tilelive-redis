@@ -1,6 +1,6 @@
 {
   "name": "tilelive-redis",
-  "version": "0.9.1",
+  "version": "1.0.0",
   "main": "./index.js",
   "description": "redis wrapping source for tilelive",
   "repository": {
