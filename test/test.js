@@ -48,6 +48,30 @@ describe('load', function() {
     });
 });
 
+describe('getConfig', function() {
+    it('creates config', function(done) {
+        assert.deepEqual(Redsource.getConfig({}), {
+            ttl: [ { pattern: new RegExp(''), value:300 } ],
+            stale: [ { pattern: new RegExp(''), value:300 } ]
+        });
+        assert.deepEqual(Redsource.getConfig({
+            ttl: 500,
+            stale: 1000
+        }), {
+            ttl: [ { pattern: new RegExp(''), value:500 } ],
+            stale: [ { pattern: new RegExp(''), value:1000 } ]
+        });
+        assert.deepEqual(Redsource.getConfig({
+            ttl: { bananas: 500 },
+            stale: { oranges: 1000 }
+        }), {
+            ttl: [ { pattern: new RegExp('bananas'), value:500 } ],
+            stale: [ { pattern: new RegExp('oranges'), value:1000 } ]
+        });
+        done();
+    });
+});
+
 var tile = function(expected, cached, done) {
     return function(err, data, headers) {
         assert.ifError(err);
@@ -539,6 +563,99 @@ describe('cachingGet', function() {
             assert.equal(stats.nocode, 2, 'nocode IO x1');
             done();
         });
+    });
+});
+
+describe('cachingGet with key patterns', function() {
+    var stats = {};
+    var options = {
+        ttl: {
+            streets: 1,
+            satellite: 1
+        },
+        stale: {
+            streets: 1,
+            satellite: 3
+        }
+    };
+    var getter = function(id, callback) {
+        stats[id] = stats[id] || 0;
+        stats[id]++;
+        return callback(null, {id:id});
+    };
+    var wrapped = Redsource.cachingGet('test', options, getter);
+    before(function(done) {
+        options.client.flushdb(done);
+    });
+    it('streets miss', function(done) {
+        wrapped('streets', function(err, data, headers) {
+            assert.ifError(err);
+            assert.deepEqual(data, {id:'streets'}, 'returns data');
+            assert.deepEqual(Object.keys(headers), ['x-redis-expires', 'x-redis-json'], 'sets x-redis-expires header');
+            assert.equal(stats.streets, 1, 'streets IO x1');
+            done();
+        });
+    });
+    it('streets hit (hit: 1s)', function(done) {
+        this.timeout(2000);
+        setTimeout(function() {
+            wrapped('streets', function(err, data, headers) {
+                assert.ifError(err);
+                assert.deepEqual(data, {id:'streets'}, 'returns data');
+                assert.deepEqual(Object.keys(headers), ['x-redis-expires', 'x-redis-json', 'x-redis'], 'sets x-redis-expires header');
+                assert.deepEqual(headers['x-redis'], 'hit');
+                assert.deepEqual(headers['x-redis-json'], true);
+                assert.equal(stats.streets, 1, 'streets IO x1');
+                done();
+            });
+        }, 1100);
+    });
+    it('streets miss (stale: 2s)', function(done) {
+        this.timeout(3000);
+        setTimeout(function() {
+            wrapped('streets', function(err, data, headers) {
+                assert.ifError(err);
+                assert.deepEqual(data, {id:'streets'}, 'returns data');
+                assert.deepEqual(Object.keys(headers), ['x-redis-expires', 'x-redis-json'], 'sets x-redis-expires header');
+                assert.equal(stats.streets, 3, 'streets IO x3');
+                done();
+            });
+        }, 2100);
+    });
+    it('satellite miss', function(done) {
+        wrapped('satellite', function(err, data, headers) {
+            assert.ifError(err);
+            assert.deepEqual(data, {id:'satellite'}, 'returns data');
+            assert.deepEqual(Object.keys(headers), ['x-redis-expires', 'x-redis-json'], 'sets x-redis-expires header');
+            assert.equal(stats.satellite, 1, 'satellite IO x1');
+            done();
+        });
+    });
+    it('satellite hit (hit: 3s)', function(done) {
+        this.timeout(4000);
+        setTimeout(function() {
+            wrapped('satellite', function(err, data, headers) {
+                assert.ifError(err);
+                assert.deepEqual(data, {id:'satellite'}, 'returns data');
+                assert.deepEqual(Object.keys(headers), ['x-redis-expires', 'x-redis-json', 'x-redis'], 'sets x-redis-expires header');
+                assert.deepEqual(headers['x-redis'], 'hit');
+                assert.deepEqual(headers['x-redis-json'], true);
+                assert.equal(stats.satellite, 1, 'satellite IO x1');
+                done();
+            });
+        }, 3000);
+    });
+    it('satellite miss (stale: 5s)', function(done) {
+        this.timeout(6000);
+        setTimeout(function() {
+            wrapped('satellite', function(err, data, headers) {
+                assert.ifError(err);
+                assert.deepEqual(data, {id:'satellite'}, 'returns data');
+                assert.deepEqual(Object.keys(headers), ['x-redis-expires', 'x-redis-json'], 'sets x-redis-expires header');
+                assert.equal(stats.satellite, 3, 'satellite IO x3');
+                done();
+            });
+        }, 5000);
     });
 });
 
