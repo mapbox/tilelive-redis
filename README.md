@@ -7,13 +7,28 @@ Module for adding a redis-based caching layer in front a [node-tilejson](https:/
 It wraps `node-tilejson`, providing a new source constructor with redis superpowers:
 
     var options = {
-        client: client, // optional, instantiated redis client
-        ttl: 300,       // optional, object cache ttl in seconds
-        stale: 300      // optional, max number of seconds to allow a stale object to be served
+        client: client,             // optional, instantiated redis client
+        ttl: <number> or <object>,  // optional, object cache ttl in seconds
+        stale: <number> or <object> // optional, max number of seconds to allow a stale object to be served
     };
     var TileJSON = require('tilelive-redis')(options, require('tilejson'));
 
     new TileJSON( ... )
+
+For `options.ttl` and `options.stale` an object may be provided to specify
+different times for different keys. For example:
+
+```js
+var options = {
+    ttl: {
+        'bananas': 5,
+        'oranges': 1000
+    }
+};
+```
+
+will set any keys matching the string `bananas` to have a ttl of 5 seconds and
+any keys matching `oranges` will be set to have a ttl of 1000 seconds.
 
 ### Requirements
 

@@ -30,19 +30,31 @@ module.exports.cachingGet = function(namespace, options, get) {
     } else {
         options.client = redis.createClient({return_buffers: true});
     }
-    options.stale = typeof options.stale === 'number' ? options.stale : 300;
-    options.ttl = typeof options.ttl === 'number' ? options.ttl : 300;
 
     if (!options.client) throw new Error('No redis client');
-    if (!options.stale) throw new Error('No stale option set');
-    if (!options.ttl) throw new Error('No ttl option set');
+    var config = getConfig(options);
 
     return function relay(url, callback) {
         var key = namespace + '-' + url;
         var source = this;
         var client = options.client;
-        var stale = options.stale;
-        var ttl = options.ttl;
+
+        var ttl = 300;
+        var stale = 300;
+
+        // Match the key against ttl/stale rules to determine its value.
+        for (var a = 0; a < config.ttl.length; a++) {
+            if (config.ttl[a].pattern.test(key)) {
+                ttl = config.ttl[a].value;
+                break;
+            }
+        }
+        for (var b = 0; b < config.stale.length; b++) {
+            if (config.stale[b].pattern.test(key)) {
+                stale = config.stale[b].value;
+                break;
+            }
+        }
 
         if (client.command_queue.length >= client.command_queue_high_water) {
             client.emit('error', new Error('Redis command queue at high water mark'));
@@ -134,6 +146,35 @@ module.exports.cachingGet = function(namespace, options, get) {
 module.exports.redis = redis;
 module.exports.encode = encode;
 module.exports.decode = decode;
+module.exports.getConfig = getConfig;
+
+// Generate key matching rules for applying a specific stale or ttl value
+// by key match.
+function getConfig(options) {
+    var config = { stale: [], ttl: [] };
+    ['stale', 'ttl'].forEach(function(type) {
+        options[type] = (/^(number|object)$/.test(typeof options[type])) ? options[type] : 300;
+        if (!options[type]) throw new Error('No ' + type + ' option set');
+        if (typeof options[type] === 'object') {
+            for (var k in options[type]) {
+                if (typeof options[type][k] !== 'number') {
+                    throw new Error(type + '.' + k + ' is not a number');
+                } else {
+                    config[type].push({
+                        pattern: new RegExp(k),
+                        value: options[type][k]
+                    });
+                }
+            }
+        } else if (typeof options[type] === 'number') {
+            config[type].push({
+                pattern: new RegExp(''),
+                value: options[type]
+            });
+        }
+    });
+    return config;
+}
 
 function errcode(err) {
     if (!err) return;
