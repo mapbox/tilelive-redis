@@ -65,7 +65,7 @@ module.exports.cachingGet = function(namespace, options, get) {
             return get.call(source, url, callback);
         }
 
-        client.get(key, timeoutAfter(function(err, encoded) {
+        client.get(key, timeoutAfter(function redisGet(err, encoded) {
             // If error on redis get, pass through to original source
             // without attempting a set after retrieval.
             if (err) {
@@ -127,7 +127,7 @@ module.exports.cachingGet = function(namespace, options, get) {
             // so that the upstream expires is fully respected.
             var pad = expires ? 0 : stale;
 
-            if (sec > 0) client.setex(key, sec + pad, encode(err, buffer, headers), timeoutAfter(function(err) {
+            if (sec > 0) client.setex(key, sec + pad, encode(err, buffer, headers), timeoutAfter(function redisSetEx(err) {
                 if (!err) return;
                 err.key = key;
                 client.emit('error', err);
@@ -142,9 +142,7 @@ module.exports.cachingGet = function(namespace, options, get) {
 
             return (+(new Date(d.headers['x-redis-expires'])) > Date.now());
         }
-    }
-
-    return caching;
+    };
 };
 
 module.exports.redis = redis;
