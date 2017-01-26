@@ -2,6 +2,7 @@ var urlParse = require('url').parse;
 var util = require('util');
 var redis = require('redis');
 var bufferEqual = require('buffer-equal');
+var timeoutAfter = require('callback-timeout');
 
 module.exports = function(options, Source) {
     if (!Source) throw new Error('No source provided');
@@ -39,6 +40,9 @@ module.exports.cachingGet = function(namespace, options, get) {
         var source = this;
         var client = options.client;
 
+        // Timeout redis operations @ 50ms by default
+        var timeout = options.timeout || 50;
+
         var ttl = 300;
         var stale = 300;
 
@@ -61,7 +65,7 @@ module.exports.cachingGet = function(namespace, options, get) {
             return get.call(source, url, callback);
         }
 
-        client.get(key, function(err, encoded) {
+        client.get(key, timeoutAfter(function(err, encoded) {
             // If error on redis get, pass through to original source
             // without attempting a set after retrieval.
             if (err) {
@@ -99,7 +103,7 @@ module.exports.cachingGet = function(namespace, options, get) {
                     callback(err, buffer, headers);
                 });
             }
-        });
+        }, timeout));
 
         function setEx(key, err, buffer, headers, ttl, stale) {
             var expires = headers.Expires || headers.expires;
@@ -123,11 +127,11 @@ module.exports.cachingGet = function(namespace, options, get) {
             // so that the upstream expires is fully respected.
             var pad = expires ? 0 : stale;
 
-            if (sec > 0) client.setex(key, sec + pad, encode(err, buffer, headers), function(err) {
+            if (sec > 0) client.setex(key, sec + pad, encode(err, buffer, headers), timeoutAfter(function(err) {
                 if (!err) return;
                 err.key = key;
                 client.emit('error', err);
-            });
+            }, timeout));
 
             return headers;
         }
