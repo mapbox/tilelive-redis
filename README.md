@@ -9,7 +9,8 @@ It wraps `node-tilejson`, providing a new source constructor with redis superpow
     var options = {
         client: client,             // optional, instantiated redis client
         ttl: <number> or <object>,  // optional, object cache ttl in seconds
-        stale: <number> or <object> // optional, max number of seconds to allow a stale object to be served
+        stale: <number> or <object>,// optional, max number of seconds to allow a stale object to be served
+        timeout: <number>           // optional, max ms to wait before bypassing redis. Defaults to 50
     };
     var TileJSON = require('tilelive-redis')(options, require('tilejson'));
 
