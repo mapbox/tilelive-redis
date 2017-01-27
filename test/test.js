@@ -659,6 +659,69 @@ describe('cachingGet with key patterns', function() {
     });
 });
 
+describe('cachingGet timeout', function() {
+    var stats = {};
+    var getter = function(id, callback) {
+        stats[id] = stats[id] || 0;
+        stats[id]++;
+        return callback(null, {id:id}, { expires: (new Date(Date.now() + (100 * 1000))).toUTCString() });
+    };
+
+    // Test that get commands timeout
+    it('client.get timeout', function(done) {
+        var options = {
+            client: {
+                command_queue: [],
+                options: {},
+                emit: function(event, err) {
+                    assert.equal(event, 'error');
+                    assert.equal(err.toString(), 'TimeoutError: timeout of 50ms exceeded for callback redisGet');
+                },
+                get: function(id, callback) {
+                    setTimeout(function() { callback(); }, 1000);
+                }
+            }
+        };
+        var wrapped = Redsource.cachingGet('test', options, getter);
+        wrapped('asdf', function(err, data, headers) {
+            assert.ifError(err);
+            assert.deepEqual(data, {id:'asdf'}, 'returns data');
+            assert.deepEqual(Object.keys(headers), [ 'expires' ], 'sets headers');
+            assert.equal(stats.asdf, 1, 'asdf IO x1');
+            done();
+        });
+    });
+
+    // Test that setex commands timeout
+    it('client.setex timeout', function(done) {
+        var options = {
+            client: {
+                command_queue: [],
+                options: {},
+                emit: function(event, err) {
+                    assert.equal(event, 'error');
+                    assert.equal(err.toString(), 'TimeoutError: timeout of 50ms exceeded for callback redisSetEx');
+                },
+                get: function(id, callback) {
+                    callback();
+                },
+                setex: function(id, expires, data, callback) {
+                    setTimeout(function() { callback(); }, 1000);
+                }
+            }
+        };
+        var wrapped = Redsource.cachingGet('test', options, getter);
+        wrapped('asdf', function(err, data, headers) {
+            assert.ifError(err);
+            assert.deepEqual(data, {id:'asdf'}, 'returns data');
+            assert.deepEqual(Object.keys(headers), ['expires', 'x-redis-expires', 'x-redis-json'], 'sets x-redis headers');
+            setTimeout(function() {
+                done();
+            }, 100);
+        });
+    });
+});
+
 describe('unit', function() {
     it('encode', function(done) {
         var errstatCode404 = new Error(); errstatCode404.statusCode = 404;
