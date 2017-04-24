@@ -1,5 +1,5 @@
 {
-  "name": "tilelive-redis",
+  "name": "@mapbox/tilelive-redis",
   "version": "1.2.0",
   "main": "./index.js",
   "description": "redis wrapping source for tilelive",
@@ -13,7 +13,6 @@
     "redis": "0.12.1"
   },
   "devDependencies": {
-    "buffer-equal": "0.0.x",
     "mocha": "1.3.x"
   },
   "scripts": {
