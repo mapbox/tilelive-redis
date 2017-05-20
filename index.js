@@ -1,7 +1,6 @@
 var urlParse = require('url').parse;
 var util = require('util');
 var redis = require('redis');
-var bufferEqual = require('buffer-equal');
 var timeoutAfter = require('callback-timeout');
 
 module.exports = function(options, Source) {
