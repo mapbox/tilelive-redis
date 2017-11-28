@@ -38,7 +38,7 @@ module.exports.cachingGet = function(namespace, options, get) {
         var key = namespace + '-' + url;
         var source = this;
         var client = options.client;
-        process.env.RedisPassword = process.env.RedisPassword || '';
+        process.env.RedisPassword = process.env.RedisPassword || null;
 
         client.auth(process.env.RedisPassword, function (err) {
             if (err) throw err;
