@@ -38,71 +38,75 @@ module.exports.cachingGet = function(namespace, options, get) {
         var key = namespace + '-' + url;
         var source = this;
         var client = options.client;
+        process.env.RedisPassword = process.env.RedisPassword || '';
 
-        // Timeout redis operations @ 50ms by default
-        var timeout = options.timeout || 50;
+        client.auth(process.env.RedisPassword, function (err) {
+            if (err) throw err;
+                    // Timeout redis operations @ 50ms by default
+            var timeout = options.timeout || 50;
 
-        var ttl = 300;
-        var stale = 300;
+            var ttl = 300;
+            var stale = 300;
 
-        // Match the key against ttl/stale rules to determine its value.
-        for (var a = 0; a < config.ttl.length; a++) {
-            if (config.ttl[a].pattern.test(key)) {
-                ttl = config.ttl[a].value;
-                break;
+            // Match the key against ttl/stale rules to determine its value.
+            for (var a = 0; a < config.ttl.length; a++) {
+                if (config.ttl[a].pattern.test(key)) {
+                    ttl = config.ttl[a].value;
+                    break;
+                }
             }
-        }
-        for (var b = 0; b < config.stale.length; b++) {
-            if (config.stale[b].pattern.test(key)) {
-                stale = config.stale[b].value;
-                break;
-            }
-        }
-
-        if (client.command_queue.length >= client.command_queue_high_water) {
-            client.emit('error', new Error('Redis command queue at high water mark'));
-            return get.call(source, url, callback);
-        }
-
-        client.get(key, timeoutAfter(function redisGet(err, encoded) {
-            // If error on redis get, pass through to original source
-            // without attempting a set after retrieval.
-            if (err) {
-                err.key = key;
-                client.emit('error', err);
-                return get.call(source,url, callback);
+            for (var b = 0; b < config.stale.length; b++) {
+                if (config.stale[b].pattern.test(key)) {
+                    stale = config.stale[b].value;
+                    break;
+                }
             }
 
-            // Cache hit.
-            var data;
-            if (encoded) try {
-                data = decode(encoded);
-            } catch(err) {
-                err.key = key;
-                client.emit('error', err);
+            if (client.command_queue.length >= client.command_queue_high_water) {
+                client.emit('error', new Error('Redis command queue at high water mark'));
+                return get.call(source, url, callback);
             }
-            if (data) {
-                callback(data.err, data.buffer, data.headers);
-                if (isFresh(data)) return;
 
-                // Update cache & bump `expires` header
-                get.call(source, url, function(err, buffer, headers) {
-                    if (err && !errcode(err)) return client.emit('error', err);
+            client.get(key, timeoutAfter(function redisGet(err, encoded) {
+                // If error on redis get, pass through to original source
+                // without attempting a set after retrieval.
+                if (err) {
+                    err.key = key;
+                    client.emit('error', err);
+                    return get.call(source,url, callback);
+                }
 
-                    headers = headers || {};
-                    headers = setEx(key, err, buffer, headers, ttl, stale);
-                });
-            } else {
-                // Cache miss, error, or otherwise no data
-                get.call(source, url, function(err, buffer, headers) {
-                    if (err && !errcode(err)) return callback(err);
+                // Cache hit.
+                var data;
+                if (encoded) try {
+                    data = decode(encoded);
+                } catch(err) {
+                    err.key = key;
+                    client.emit('error', err);
+                }
+                if (data) {
+                    callback(data.err, data.buffer, data.headers);
+                    if (isFresh(data)) return;
 
-                    headers = headers || {};
-                    headers = setEx(key, err, buffer, headers, ttl, stale);
-                    callback(err, buffer, headers);
-                });
-            }
-        }, timeout));
+                    // Update cache & bump `expires` header
+                    get.call(source, url, function(err, buffer, headers) {
+                        if (err && !errcode(err)) return client.emit('error', err);
+
+                        headers = headers || {};
+                        headers = setEx(key, err, buffer, headers, ttl, stale);
+                    });
+                } else {
+                    // Cache miss, error, or otherwise no data
+                    get.call(source, url, function(err, buffer, headers) {
+                        if (err && !errcode(err)) return callback(err);
+
+                        headers = headers || {};
+                        headers = setEx(key, err, buffer, headers, ttl, stale);
+                        callback(err, buffer, headers);
+                    });
+                }
+            }, timeout));
+        });
 
         function setEx(key, err, buffer, headers, ttl, stale) {
             var expires = headers.Expires || headers.expires;
