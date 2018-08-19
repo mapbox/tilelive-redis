@@ -1,4 +1,3 @@
-var urlParse = require('url').parse;
 var util = require('util');
 var redis = require('redis');
 var timeoutAfter = require('callback-timeout');
