@@ -8,8 +8,8 @@
     "url": "git://github.com/mapbox/tilelive-redis.git"
   },
   "dependencies": {
-    "callback-timeout": "2.1.0",
-    "redis": "0.12.1"
+    "callback-timeout": "^4.0.0",
+    "redis": "^2.8.0"
   },
   "devDependencies": {
     "buffer-equal": "0.0.1",
