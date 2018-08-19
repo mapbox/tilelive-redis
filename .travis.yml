@@ -18,4 +18,4 @@ matrix:
        - npm test
    - node_js: 10
      script:
-       - npm run coverage
+       - npm test
