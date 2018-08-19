@@ -1,4 +1,5 @@
 [![Build Status](https://travis-ci.org/mapbox/tilelive-redis.png?branch=master)](https://travis-ci.org/mapbox/tilelive-redis)
+[![codecov](https://codecov.io/gh/mapbox/tilelive-redis/branch/master/graph/badge.svg)](https://codecov.io/gh/mapbox/tilelive-redis)
 
 tilelive-redis
 --------------
