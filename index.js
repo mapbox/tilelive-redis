@@ -210,8 +210,7 @@ function encode(err, buffer, headers) {
         throw new Error('Invalid cache value - headers exceed 1024 bytes: ' + JSON.stringify(headers));
     }
 
-    var padding = Buffer.allocUnsafe(1024 - headers.length);
-    padding.fill(' ');
+    var padding = Buffer.alloc(1024 - headers.length, ' ');
     var len = headers.length + padding.length + buffer.length;
     return Buffer.concat([headers, padding, buffer], len);
 };
