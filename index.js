@@ -191,27 +191,26 @@ function encode(err, buffer, headers) {
 
     if (err)  {
         headers['x-redis-err'] = errcode(err).toString();
-        headers = new Buffer(JSON.stringify(headers), 'utf8');
+        headers = Buffer.from(JSON.stringify(headers), 'utf8');
         return headers;
     }
 
     // Turn objects into JSON string buffers.
     if (buffer && typeof buffer === 'object' && !(buffer instanceof Buffer)) {
         headers['x-redis-json'] = true;
-        buffer = new Buffer(JSON.stringify(buffer));
+        buffer = Buffer.from(JSON.stringify(buffer));
     // Turn strings into buffers.
     } else if (buffer && !(buffer instanceof Buffer)) {
-        buffer = new Buffer(buffer);
+        buffer = Buffer.from(buffer);
     }
 
-    headers = new Buffer(JSON.stringify(headers), 'utf8');
+    headers = Buffer.from(JSON.stringify(headers), 'utf8');
 
     if (headers.length > 1024) {
         throw new Error('Invalid cache value - headers exceed 1024 bytes: ' + JSON.stringify(headers));
     }
 
-    var padding = new Buffer(1024 - headers.length);
-    padding.fill(' ');
+    var padding = Buffer.alloc(1024 - headers.length, ' ');
     var len = headers.length + padding.length + buffer.length;
     return Buffer.concat([headers, padding, buffer], len);
 };
