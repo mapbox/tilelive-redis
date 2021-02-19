@@ -27,7 +27,7 @@ module.exports.cachingGet = function(namespace, options, get) {
     if (options.client) {
         options.client.options.return_buffers = true;
     } else {
-        options.client = redis.createClient({return_buffers: true});
+        options.client = redis.createClient({ return_buffers: true });
     }
 
     if (!options.client) throw new Error('No redis client');
@@ -69,14 +69,14 @@ module.exports.cachingGet = function(namespace, options, get) {
             if (err) {
                 err.key = key;
                 client.emit('error', err);
-                return get.call(source,url, callback);
+                return get.call(source, url, callback);
             }
 
             // Cache hit.
             var data;
             if (encoded) try {
-                data = decode(encoded);
-            } catch(err) {
+                data = decode(encoded, key);
+            } catch (err) {
                 err.key = key;
                 client.emit('error', err);
             }
@@ -115,7 +115,7 @@ module.exports.cachingGet = function(namespace, options, get) {
             }
 
             // seconds from now to expiration time
-            var sec = Math.ceil((Number(new Date(headers['x-redis-expires'])) - Number(new Date()))/1000);
+            var sec = Math.ceil((Number(new Date(headers['x-redis-expires'])) - Number(new Date())) / 1000);
 
             // stale is the number of extra seconds to cache an object
             // past its expires time where we may serve a "stale"
@@ -189,7 +189,7 @@ function encode(err, buffer, headers) {
 
     headers = headers || {};
 
-    if (err)  {
+    if (err) {
         headers['x-redis-err'] = errcode(err).toString();
         headers = Buffer.from(JSON.stringify(headers), 'utf8');
         return headers;
@@ -199,7 +199,7 @@ function encode(err, buffer, headers) {
     if (buffer && typeof buffer === 'object' && !(buffer instanceof Buffer)) {
         headers['x-redis-json'] = true;
         buffer = Buffer.from(JSON.stringify(buffer));
-    // Turn strings into buffers.
+        // Turn strings into buffers.
     } else if (buffer && !(buffer instanceof Buffer)) {
         buffer = Buffer.from(buffer);
     }
@@ -215,9 +215,16 @@ function encode(err, buffer, headers) {
     return Buffer.concat([headers, padding, buffer], len);
 };
 
-function decode(encoded) {
+let logDecodeRequests = false;
+
+function decode(encoded, key) {
     if (encoded.length == 3) {
         encoded = encoded.toString();
+
+        if (logDecodeRequests) {
+            console.log(`[tilelive-redis] Encoded length of 3 | Key: ${key} | Encoded: ${encoded}`);
+        }
+
         if (encoded === '404' || encoded === '403') {
             var err = new Error();
             err.statusCode = parseInt(encoded, 10);
@@ -236,10 +243,18 @@ function decode(encoded) {
         data.headers = encoded;
     }
 
+    var dataHeaders = data.headers;
+
     try {
         data.headers = JSON.parse(data.headers);
-    } catch(e) {
-        throw new Error('Invalid cache value');
+    } catch (e) {
+        const prefix = logDecodeRequests ? 'Subsequent' : 'First';
+        logDecodeRequests = true;
+        throw new Error(`[tilelive-redis] Invalid cache value | ${prefix} time | Key: ${key} | Length: ${encoded.length} | Headers: ${data.headers}`);
+    }
+
+    if (logDecodeRequests) {
+        console.log(`[tilelive-redis] Valid header | Key: ${key} | Length: ${encoded.length} | Header: ${dataHeaders}`)
     }
 
     data.headers['x-redis'] = 'hit';
