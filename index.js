@@ -250,7 +250,7 @@ function decode(encoded, key) {
     } catch (e) {
         const prefix = logDecodeRequests ? 'Subsequent' : 'First';
         logDecodeRequests = true;
-        throw new Error(`[tilelive-redis] Invalid cache value | ${prefix} time | Key: ${key} | Length: ${encoded.length} | Headers: ${dataHeaders}`);
+        throw new Error(`[tilelive-redis] Invalid cache value | ${prefix} time | Key: ${key} | Length: ${encoded.length} | Headers: ${dataHeaders} | Error: ${e.message}`);
     }
 
     if (logDecodeRequests) {
